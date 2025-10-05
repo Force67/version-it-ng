@@ -1,0 +1,17 @@
+[package]
+name = "version-it-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI interface for version-it"
+
+[[bin]]
+name = "version-it"
+path = "src/main.rs"
+
+[dependencies]
+version-it-core = { path = "../version-it-core" }
+clap = { version = "4.0", features = ["derive"] }
+anyhow = "1.0"

@@ -1,0 +1,153 @@
+use clap::{Parser, Subcommand};
+use version_it_core::{VersionInfo, Config};
+use std::process;
+use std::path::Path;
+
+#[derive(Parser)]
+#[command(name = "version-it")]
+#[command(about = "A semantic versioning tool for CI pipelines")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Bump the version
+    Bump {
+        /// Current version (optional, uses config first-version if not provided)
+        #[arg(short, long)]
+        version: Option<String>,
+        /// Bump type: major, minor, patch
+        #[arg(short, long)]
+        bump: String,
+    },
+    /// Get the next version without bumping
+    Next {
+        /// Current version (optional, uses config first-version if not provided)
+        #[arg(short, long)]
+        version: Option<String>,
+        /// Bump type: major, minor, patch
+        #[arg(short, long)]
+        bump: String,
+    },
+    /// Automatically bump version based on commits
+    AutoBump,
+}
+
+fn main() {
+    let config = if Path::new(".version-it").exists() {
+        match Config::load_from_file(".version-it") {
+            Ok(c) => Some(c),
+            Err(e) => {
+                eprintln!("Error loading config: {}", e);
+                process::exit(1);
+            }
+        }
+    } else {
+        None
+    };
+
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Bump { version, bump } => {
+            let version_str = version.or_else(|| config.as_ref().map(|c| c.first_version.clone())).unwrap_or_else(|| {
+                eprintln!("No version provided and no config found");
+                process::exit(1);
+            });
+
+            let scheme = config.as_ref().map(|c| c.versioning_scheme.clone()).unwrap_or_else(|| "semantic".to_string());
+            let mut v = VersionInfo::new(&version_str, &scheme).unwrap_or_else(|e| {
+                eprintln!("Error parsing version: {}", e);
+                process::exit(1);
+            });
+
+            match bump.as_str() {
+                "major" => v.bump_major(),
+                "minor" => v.bump_minor(),
+                "patch" => v.bump_patch(),
+                _ => {
+                    eprintln!("Invalid bump type: {}. Use major, minor, or patch.", bump);
+                    process::exit(1);
+                }
+            }
+
+            let new_version = v.to_string();
+            println!("{}", new_version);
+
+            if let Some(ref cfg) = config {
+                if let Err(e) = cfg.generate_headers(&new_version) {
+                    eprintln!("Error generating headers: {}", e);
+                    process::exit(1);
+                }
+            }
+        }
+        Commands::Next { version, bump } => {
+            let version_str = version.or_else(|| config.as_ref().map(|c| c.first_version.clone())).unwrap_or_else(|| {
+                eprintln!("No version provided and no config found");
+                process::exit(1);
+            });
+
+            let scheme = config.as_ref().map(|c| c.versioning_scheme.clone()).unwrap_or_else(|| "semantic".to_string());
+            let mut v = VersionInfo::new(&version_str, &scheme).unwrap_or_else(|e| {
+                eprintln!("Error parsing version: {}", e);
+                process::exit(1);
+            });
+
+            match bump.as_str() {
+                "major" => v.bump_major(),
+                "minor" => v.bump_minor(),
+                "patch" => v.bump_patch(),
+                _ => {
+                    eprintln!("Invalid bump type: {}. Use major, minor, or patch.", bump);
+                    process::exit(1);
+                }
+            }
+
+            println!("{}", v.to_string());
+        }
+        Commands::AutoBump => {
+            if let Some(ref cfg) = config {
+                match cfg.analyze_commits_for_bump() {
+                    Ok(Some(bump_type)) => {
+                        // Get current version from latest tag or config
+                        let current_version = cfg.get_latest_version_tag().unwrap_or(Some(cfg.first_version.clone())).unwrap_or(cfg.first_version.clone());
+                        let mut v = VersionInfo::new(&current_version, &cfg.versioning_scheme).unwrap_or_else(|e| {
+                            eprintln!("Error parsing version: {}", e);
+                            process::exit(1);
+                        });
+
+                        match bump_type.as_str() {
+                            "major" => v.bump_major(),
+                            "minor" => v.bump_minor(),
+                            "patch" => v.bump_patch(),
+                            _ => {
+                                eprintln!("Unknown bump type: {}", bump_type);
+                                process::exit(1);
+                            }
+                        }
+
+                        let new_version = v.to_string();
+                        println!("{}", new_version);
+
+                        if let Err(e) = cfg.generate_headers(&new_version) {
+                            eprintln!("Error generating headers: {}", e);
+                            process::exit(1);
+                        }
+                    }
+                    Ok(None) => {
+                        println!("No bump needed");
+                    }
+                    Err(e) => {
+                        eprintln!("Error analyzing commits: {}", e);
+                        process::exit(1);
+                    }
+                }
+            } else {
+                eprintln!("No config found for auto-bump");
+                process::exit(1);
+            }
+        }
+    }
+}

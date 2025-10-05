@@ -1,0 +1,16 @@
+[package]
+name = "version-it-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core versioning logic for version-it"
+
+[dependencies]
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+handlebars = "4.0"
