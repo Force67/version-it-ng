@@ -61,11 +61,14 @@ version-it auto-bump
 
 Most options can be set via YAML config or overridden via CLI flags.
 
+Specify a custom config file with `--config path/to/.version-it`.
+
 Create a `.version-it` file in your project:
 
 ```yaml
 versioning-scheme: calver
 first-version: 25.10.01
+current-version-file: version.txt  # Optional: read/write current version from/to this file
 version-headers:
 - language: c
   path: include/version.h
@@ -94,6 +97,23 @@ Requires Rust toolchain. Build and test:
 cargo build
 cargo test
 ```
+
+## Subproject Support
+
+For monorepos with multiple subprojects, create separate `.version-it` configs in each subfolder. Use `current-version-file` to store the version for each subproject independently of global git tags.
+
+Example:
+```
+repo/
+├── .version-it          # Global config
+├── subproject1/
+│   ├── .version-it      # Subproject config with current-version-file: version.txt
+│   └── version.txt      # Current version for subproject1
+└── subproject2/
+    └── .version-it      # Subproject config
+```
+
+Run commands with `--config subproject1/.version-it` to work on specific subprojects.
 
 ## CI Integration
 

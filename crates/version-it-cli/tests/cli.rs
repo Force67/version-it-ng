@@ -39,21 +39,21 @@ fn test_cli_bump_with_scheme() {
 #[test]
 fn test_subfolder_config() {
     use std::fs;
-    use std::env;
 
-    // Create a temp directory for the subproject
-    let temp_dir = env::temp_dir().join("version_it_test_sub");
-    fs::create_dir_all(&temp_dir).unwrap();
+    // Create test files in current directory
+    let config_path = "test_sub_config.yml";
+    let version_file = "test_version.txt";
+    let header_file = "test_version.h";
 
-    // Create version file
-    let version_file = temp_dir.join("sub").join("version.txt");
-    fs::write(&version_file, "1.1.0").unwrap();
+    // Clean up any existing
+    fs::remove_file(config_path).ok();
+    fs::remove_file(version_file).ok();
+    fs::remove_file(header_file).ok();
 
-    // Create subfolder config
-    let sub_config = temp_dir.join("sub").join(".version-it");
-    fs::create_dir_all(sub_config.parent().unwrap()).unwrap();
-    let version_file_path = version_file.to_str().unwrap();
-    let header_path = temp_dir.join("sub").join("include").join("version.h").to_str().unwrap().to_string();
+    // Write version file
+    fs::write(version_file, "1.1.0").unwrap();
+
+    // Write config
     let yaml = format!(r#"
 run-on-branches: ["main"]
 versioning-scheme: semantic
@@ -66,38 +66,29 @@ change-type-map: []
 version-headers:
   - language: c
     path: "{}"
-"#, version_file_path, header_path);
-    fs::write(&sub_config, yaml).unwrap();
+"#, version_file, header_file);
+    fs::write(config_path, yaml).unwrap();
 
-    // Create include dir
-    fs::create_dir_all(temp_dir.join("sub").join("include")).unwrap();
-
-    // Run command from original dir with full config path
-    let config_path = sub_config.to_str().unwrap();
-    let version_file_path = version_file.to_str().unwrap();
-
+    // Run command
     let output = Command::new("cargo")
         .args(&["run", "--bin", "version-it", "--", "--config", config_path, "bump", "--bump", "patch"])
         .output()
         .expect("Failed to run command");
 
-    if !output.status.success() {
-        eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-        eprintln!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-    }
-
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(stdout.trim(), "1.1.1");
 
-    // Check if header was generated
-    let header_content = fs::read_to_string(temp_dir.join("sub").join("include").join("version.h")).unwrap();
-    assert!(header_content.contains("#define VERSION \"1.1.1\""));
+    // Check version file updated
+    let updated = fs::read_to_string(version_file).unwrap();
+    assert_eq!(updated.trim(), "1.1.1");
 
-    // Check if version file was updated
-    let updated_version = fs::read_to_string(&version_file).unwrap();
-    assert_eq!(updated_version.trim(), "1.1.1");
+    // Check header generated
+    let header = fs::read_to_string(header_file).unwrap();
+    assert!(header.contains("#define VERSION \"1.1.1\""));
 
     // Clean up
-    fs::remove_dir_all(&temp_dir).unwrap();
+    fs::remove_file(config_path).unwrap();
+    fs::remove_file(version_file).unwrap();
+    fs::remove_file(header_file).unwrap();
 }
