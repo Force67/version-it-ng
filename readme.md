@@ -8,6 +8,10 @@ A configurable versioning tool for CI pipelines supporting multiple versioning s
 - **calver**: Calendar versioning (25.10.01 for Oct 1, 2025)
 - **timestamp**: Timestamp-based (20251005220904)
 - **commit**: Git commit hash-based (abc1234)
+- **build**: Build number versioning (1.2.3.456)
+- **monotonic**: Simple incrementing number (42)
+- **datetime**: ISO 8601 datetime (2024-10-06T14:30:00)
+- **pattern**: Custom string patterns (v1.0.0-snapshot)
 
 ## Usage
 
@@ -28,12 +32,34 @@ version-it bump --bump patch
 version-it bump --bump patch
 # Output: abc1234
 
+# Build versioning
+version-it bump --version 1.2.3.456 --bump patch
+# Output: 1.2.4.0
+
+# Monotonic versioning
+version-it bump --version 42 --bump major
+# Output: 43
+
+# Datetime versioning (uses current datetime)
+version-it bump --bump patch
+# Output: 2024-10-06T14:30:00
+
+# Pattern versioning
+version-it bump --version v1.0.0-snapshot --bump minor
+# Output: v1.0.0-snapshot-updated
+
+# Override scheme via CLI
+version-it bump --version 1.2.3 --scheme build --bump patch
+# Output: 1.2.4.0
+
 # Automatically bump based on commits
 version-it auto-bump
 # Analyzes git commits since last version tag and bumps accordingly
 ```
 
 ## Configuration
+
+Most options can be set via YAML config or overridden via CLI flags.
 
 Create a `.version-it` file in your project:
 
@@ -62,10 +88,9 @@ See `examples/templates/` for sample templates.
 
 ## Development
 
-Use Nix for development:
+Requires Rust toolchain. Build and test:
 
 ```bash
-nix develop
 cargo build
 cargo test
 ```

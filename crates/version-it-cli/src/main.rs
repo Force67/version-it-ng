@@ -21,6 +21,9 @@ enum Commands {
         /// Bump type: major, minor, patch
         #[arg(short, long)]
         bump: String,
+        /// Versioning scheme (optional, uses config or defaults to semantic)
+        #[arg(short, long)]
+        scheme: Option<String>,
     },
     /// Get the next version without bumping
     Next {
@@ -30,9 +33,37 @@ enum Commands {
         /// Bump type: major, minor, patch
         #[arg(short, long)]
         bump: String,
+        /// Versioning scheme (optional, uses config or defaults to semantic)
+        #[arg(short, long)]
+        scheme: Option<String>,
     },
     /// Automatically bump version based on commits
     AutoBump,
+}
+
+fn get_version_info_with_scheme(version: Option<String>, config: &Option<Config>, scheme_override: Option<String>) -> VersionInfo {
+    let version_str = version.or_else(|| config.as_ref().map(|c| c.first_version.clone())).unwrap_or_else(|| {
+        eprintln!("No version provided and no config found");
+        process::exit(1);
+    });
+
+    let scheme = scheme_override.or_else(|| config.as_ref().map(|c| c.versioning_scheme.clone())).unwrap_or_else(|| "semantic".to_string());
+    VersionInfo::new(&version_str, &scheme).unwrap_or_else(|e| {
+        eprintln!("Error parsing version: {}", e);
+        process::exit(1);
+    })
+}
+
+fn apply_bump(v: &mut VersionInfo, bump: &str) {
+    match bump {
+        "major" => v.bump_major(),
+        "minor" => v.bump_minor(),
+        "patch" => v.bump_patch(),
+        _ => {
+            eprintln!("Invalid bump type: {}. Use major, minor, or patch.", bump);
+            process::exit(1);
+        }
+    }
 }
 
 fn main() {
@@ -51,27 +82,9 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Bump { version, bump } => {
-            let version_str = version.or_else(|| config.as_ref().map(|c| c.first_version.clone())).unwrap_or_else(|| {
-                eprintln!("No version provided and no config found");
-                process::exit(1);
-            });
-
-            let scheme = config.as_ref().map(|c| c.versioning_scheme.clone()).unwrap_or_else(|| "semantic".to_string());
-            let mut v = VersionInfo::new(&version_str, &scheme).unwrap_or_else(|e| {
-                eprintln!("Error parsing version: {}", e);
-                process::exit(1);
-            });
-
-            match bump.as_str() {
-                "major" => v.bump_major(),
-                "minor" => v.bump_minor(),
-                "patch" => v.bump_patch(),
-                _ => {
-                    eprintln!("Invalid bump type: {}. Use major, minor, or patch.", bump);
-                    process::exit(1);
-                }
-            }
+        Commands::Bump { version, bump, scheme } => {
+            let mut v = get_version_info_with_scheme(version, &config, scheme);
+            apply_bump(&mut v, &bump);
 
             let new_version = v.to_string();
             println!("{}", new_version);
@@ -83,27 +96,9 @@ fn main() {
                 }
             }
         }
-        Commands::Next { version, bump } => {
-            let version_str = version.or_else(|| config.as_ref().map(|c| c.first_version.clone())).unwrap_or_else(|| {
-                eprintln!("No version provided and no config found");
-                process::exit(1);
-            });
-
-            let scheme = config.as_ref().map(|c| c.versioning_scheme.clone()).unwrap_or_else(|| "semantic".to_string());
-            let mut v = VersionInfo::new(&version_str, &scheme).unwrap_or_else(|e| {
-                eprintln!("Error parsing version: {}", e);
-                process::exit(1);
-            });
-
-            match bump.as_str() {
-                "major" => v.bump_major(),
-                "minor" => v.bump_minor(),
-                "patch" => v.bump_patch(),
-                _ => {
-                    eprintln!("Invalid bump type: {}. Use major, minor, or patch.", bump);
-                    process::exit(1);
-                }
-            }
+        Commands::Next { version, bump, scheme } => {
+            let mut v = get_version_info_with_scheme(version, &config, scheme);
+            apply_bump(&mut v, &bump);
 
             println!("{}", v.to_string());
         }
