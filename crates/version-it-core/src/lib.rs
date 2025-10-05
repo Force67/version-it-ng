@@ -267,6 +267,9 @@ pub struct Config {
     pub versioning_scheme: String,
     #[serde(rename = "first-version")]
     pub first_version: String,
+    #[serde(rename = "current-version-file")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_version_file: Option<String>,
     #[serde(rename = "changelog-exporters")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub changelog_exporters: Option<ChangelogExporters>,
@@ -297,6 +300,15 @@ impl Config {
         let contents = std::fs::read_to_string(path)?;
         let config: Config = serde_yaml::from_str(&contents)?;
         Ok(config)
+    }
+
+    pub fn get_current_version(&self) -> Result<String, Box<dyn std::error::Error>> {
+        if let Some(ref file) = self.current_version_file {
+            let version = std::fs::read_to_string(file)?;
+            Ok(version.trim().to_string())
+        } else {
+            Ok(self.first_version.clone())
+        }
     }
 
     /// Analyzes recent commits to determine if a version bump is needed.
@@ -558,6 +570,7 @@ mod tests {
 run-on-branches: ["main"]
 versioning-scheme: semantic
 first-version: "1.0.0"
+current-version-file: version.txt
 calver-enable-branch: false
 changelog-sections:
   - title: Features
@@ -575,6 +588,45 @@ version-headers:
         assert_eq!(config.versioning_scheme, "semantic");
         assert_eq!(config.first_version, "1.0.0");
         fs::remove_file("test_config.yml").unwrap();
+    }
+
+    #[test]
+    fn test_get_current_version_from_file() {
+        use std::fs;
+        fs::write("test_version.txt", "2.1.0\n").unwrap();
+        let config = Config {
+            run_on_branches: vec![],
+            versioning_scheme: "semantic".to_string(),
+            first_version: "1.0.0".to_string(),
+            current_version_file: Some("test_version.txt".to_string()),
+            changelog_exporters: None,
+            calver_enable_branch: false,
+            changelog_sections: vec![],
+            change_substitutions: vec![],
+            change_type_map: vec![],
+            version_headers: None,
+        };
+        let version = config.get_current_version().unwrap();
+        assert_eq!(version, "2.1.0");
+        fs::remove_file("test_version.txt").unwrap();
+    }
+
+    #[test]
+    fn test_get_current_version_fallback() {
+        let config = Config {
+            run_on_branches: vec![],
+            versioning_scheme: "semantic".to_string(),
+            first_version: "1.0.0".to_string(),
+            current_version_file: None,
+            changelog_exporters: None,
+            calver_enable_branch: false,
+            changelog_sections: vec![],
+            change_substitutions: vec![],
+            change_type_map: vec![],
+            version_headers: None,
+        };
+        let version = config.get_current_version().unwrap();
+        assert_eq!(version, "1.0.0");
     }
 
     #[test]
@@ -599,6 +651,7 @@ version-headers:
             run_on_branches: vec!["main".to_string()],
             versioning_scheme: "semantic".to_string(),
             first_version: "1.0.0".to_string(),
+            current_version_file: None,
             changelog_exporters: None,
             calver_enable_branch: false,
             changelog_sections: vec![],
@@ -632,6 +685,7 @@ version-headers:
             run_on_branches: vec![],
             versioning_scheme: "semantic".to_string(),
             first_version: "1.0.0".to_string(),
+            current_version_file: None,
             changelog_exporters: None,
             calver_enable_branch: false,
             changelog_sections: vec![],
@@ -649,6 +703,7 @@ version-headers:
             run_on_branches: vec!["main".to_string()],
             versioning_scheme: "semantic".to_string(),
             first_version: "1.0.0".to_string(),
+            current_version_file: None,
             changelog_exporters: None,
             calver_enable_branch: false,
             changelog_sections: vec![],

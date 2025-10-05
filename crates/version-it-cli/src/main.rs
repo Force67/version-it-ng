@@ -9,6 +9,9 @@ use std::path::Path;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+    /// Path to config file (default: .version-it)
+    #[arg(short, long, default_value = ".version-it")]
+    config: String,
 }
 
 #[derive(Subcommand)]
@@ -42,7 +45,7 @@ enum Commands {
 }
 
 fn get_version_info_with_scheme(version: Option<String>, config: &Option<Config>, scheme_override: Option<String>) -> VersionInfo {
-    let version_str = version.or_else(|| config.as_ref().map(|c| c.first_version.clone())).unwrap_or_else(|| {
+    let version_str = version.or_else(|| config.as_ref().and_then(|c| c.get_current_version().ok())).unwrap_or_else(|| {
         eprintln!("No version provided and no config found");
         process::exit(1);
     });
@@ -67,8 +70,9 @@ fn apply_bump(v: &mut VersionInfo, bump: &str) {
 }
 
 fn main() {
-    let config = if Path::new(".version-it").exists() {
-        match Config::load_from_file(".version-it") {
+    let cli = Cli::parse();
+    let config = if Path::new(&cli.config).exists() {
+        match Config::load_from_file(&cli.config) {
             Ok(c) => Some(c),
             Err(e) => {
                 eprintln!("Error loading config: {}", e);
@@ -90,6 +94,12 @@ fn main() {
             println!("{}", new_version);
 
             if let Some(ref cfg) = config {
+                if let Some(ref file) = cfg.current_version_file {
+                    if let Err(e) = std::fs::write(file, &new_version) {
+                        eprintln!("Error writing version to file: {}", e);
+                        process::exit(1);
+                    }
+                }
                 if let Err(e) = cfg.generate_headers(&new_version) {
                     eprintln!("Error generating headers: {}", e);
                     process::exit(1);
@@ -106,8 +116,10 @@ fn main() {
             if let Some(ref cfg) = config {
                 match cfg.analyze_commits_for_bump() {
                     Ok(Some(bump_type)) => {
-                        // Get current version from latest tag or config
-                        let current_version = cfg.get_latest_version_tag().unwrap_or(Some(cfg.first_version.clone())).unwrap_or(cfg.first_version.clone());
+                        // Get current version from file or latest tag or config
+                        let current_version = cfg.get_current_version().unwrap_or_else(|_| {
+                            cfg.get_latest_version_tag().unwrap_or(Some(cfg.first_version.clone())).unwrap_or(cfg.first_version.clone())
+                        });
                         let mut v = VersionInfo::new(&current_version, &cfg.versioning_scheme).unwrap_or_else(|e| {
                             eprintln!("Error parsing version: {}", e);
                             process::exit(1);
@@ -126,6 +138,12 @@ fn main() {
                         let new_version = v.to_string();
                         println!("{}", new_version);
 
+                        if let Some(ref file) = cfg.current_version_file {
+                            if let Err(e) = std::fs::write(file, &new_version) {
+                                eprintln!("Error writing version to file: {}", e);
+                                process::exit(1);
+                            }
+                        }
                         if let Err(e) = cfg.generate_headers(&new_version) {
                             eprintln!("Error generating headers: {}", e);
                             process::exit(1);
