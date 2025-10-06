@@ -755,6 +755,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "serde_json",
  "version-it-core",
 ]
 

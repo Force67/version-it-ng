@@ -440,6 +440,8 @@ pub struct Config {
     pub commit_based_bumping: bool,
     #[serde(rename = "enable-expensive-metrics")]
     pub enable_expensive_metrics: bool,
+    #[serde(rename = "structured-output", default)]
+    pub structured_output: bool,
 }
 
 impl Config {
@@ -1146,6 +1148,7 @@ enable-expensive-metrics: false
             channel: None,
             commit_based_bumping: false,
             enable_expensive_metrics: false,
+            structured_output: false,
         };
         let version = config.get_current_version().unwrap();
         assert_eq!(version, "2.1.0");
@@ -1180,6 +1183,7 @@ enable-expensive-metrics: false
             channel: None,
             commit_based_bumping: true,
             enable_expensive_metrics: false,
+            structured_output: false,
         };
 
         assert_eq!(config.determine_bump_from_commit("feat: add new feature"), Some("minor".to_string()));
