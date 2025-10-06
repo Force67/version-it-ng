@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use version_it_core::{VersionInfo, Config};
 use std::process;
 use std::path::Path;
+use std::process::Command;
 
 #[derive(Parser)]
 #[command(name = "version-it")]
@@ -27,6 +28,12 @@ enum Commands {
         /// Versioning scheme (optional, uses config or defaults to semantic)
         #[arg(short, long)]
         scheme: Option<String>,
+        /// Create a git tag after bumping
+        #[arg(long)]
+        create_tag: bool,
+        /// Commit version file changes after bumping
+        #[arg(long)]
+        commit: bool,
     },
     /// Get the next version without bumping
     Next {
@@ -41,7 +48,14 @@ enum Commands {
         scheme: Option<String>,
     },
     /// Automatically bump version based on commits
-    AutoBump,
+    AutoBump {
+        /// Create a git tag after bumping
+        #[arg(long)]
+        create_tag: bool,
+        /// Commit version file changes after bumping
+        #[arg(long)]
+        commit: bool,
+    },
 }
 
 fn get_version_info_with_scheme(version: Option<String>, config: &Option<Config>, scheme_override: Option<String>) -> VersionInfo {
@@ -69,6 +83,55 @@ fn apply_bump(v: &mut VersionInfo, bump: &str) {
     }
 }
 
+fn git_commit_changes(version: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Add all changes to git
+    let status = Command::new("git")
+        .args(&["add", "."])
+        .status()?;
+
+    if !status.success() {
+        return Err("Failed to add files to git".into());
+    }
+
+    // Check if there are any changes to commit
+    let status_output = Command::new("git")
+        .args(&["status", "--porcelain"])
+        .output()?;
+
+    if status_output.stdout.is_empty() {
+        // No changes to commit
+        return Ok(());
+    }
+
+    // Commit the changes
+    let commit_message = format!("Bump version to {}", version);
+    let status = Command::new("git")
+        .args(&["commit", "-m", &commit_message])
+        .status()?;
+
+    if !status.success() {
+        return Err("Failed to commit changes".into());
+    }
+
+    println!("Committed version bump: {}", version);
+    Ok(())
+}
+
+fn git_create_tag(version: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Create an annotated tag
+    let tag_message = format!("Version {}", version);
+    let status = Command::new("git")
+        .args(&["tag", "-a", version, "-m", &tag_message])
+        .status()?;
+
+    if !status.success() {
+        return Err("Failed to create git tag".into());
+    }
+
+    println!("Created git tag: {}", version);
+    Ok(())
+}
+
 fn main() {
     let cli = Cli::parse();
     let config = if Path::new(&cli.config).exists() {
@@ -86,7 +149,7 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Bump { version, bump, scheme } => {
+        Commands::Bump { version, bump, scheme, create_tag, commit } => {
             let mut v = get_version_info_with_scheme(version, &config, scheme);
             apply_bump(&mut v, &bump);
 
@@ -105,6 +168,21 @@ fn main() {
                     process::exit(1);
                 }
             }
+
+            // Git operations
+            if commit {
+                if let Err(e) = git_commit_changes(&new_version) {
+                    eprintln!("Error committing changes: {}", e);
+                    process::exit(1);
+                }
+            }
+
+            if create_tag {
+                if let Err(e) = git_create_tag(&new_version) {
+                    eprintln!("Error creating tag: {}", e);
+                    process::exit(1);
+                }
+            }
         }
         Commands::Next { version, bump, scheme } => {
             let mut v = get_version_info_with_scheme(version, &config, scheme);
@@ -112,7 +190,7 @@ fn main() {
 
             println!("{}", v.to_string());
         }
-        Commands::AutoBump => {
+        Commands::AutoBump { create_tag, commit } => {
             if let Some(ref cfg) = config {
                 match cfg.analyze_commits_for_bump() {
                     Ok(Some(bump_type)) => {
@@ -147,6 +225,21 @@ fn main() {
                         if let Err(e) = cfg.generate_headers(&new_version) {
                             eprintln!("Error generating headers: {}", e);
                             process::exit(1);
+                        }
+
+                        // Git operations
+                        if commit {
+                            if let Err(e) = git_commit_changes(&new_version) {
+                                eprintln!("Error committing changes: {}", e);
+                                process::exit(1);
+                            }
+                        }
+
+                        if create_tag {
+                            if let Err(e) = git_create_tag(&new_version) {
+                                eprintln!("Error creating tag: {}", e);
+                                process::exit(1);
+                            }
                         }
                     }
                     Ok(None) => {
