@@ -13,6 +13,15 @@ A configurable versioning tool for CI pipelines supporting multiple versioning s
 - **datetime**: ISO 8601 datetime (2024-10-06T14:30:00)
 - **pattern**: Custom string patterns (v1.0.0-snapshot)
 
+## Release Channels
+
+Support for release channels with different versioning behaviors:
+
+- **stable**: Standard versioning (1.2.3)
+- **beta**: Pre-release versions (1.2.3-beta.1)
+- **nightly**: Uses timestamp/commit for nightly builds (20241006)
+- **custom**: User-defined channel suffix (1.2.3-custom)
+
 ## Usage
 
 ```bash
@@ -52,6 +61,16 @@ version-it bump --version v1.0.0-snapshot --bump minor
 version-it bump --version 1.2.3 --scheme build --bump patch
 # Output: 1.2.4.0
 
+# Channel-based versioning
+version-it bump --version 1.2.3 --channel beta --bump patch
+# Output: 1.2.4-beta.1
+
+version-it bump --version 1.2.3 --channel nightly --scheme timestamp --bump patch
+# Output: 20251005220904
+
+version-it bump --version 1.2.3 --channel rc --bump minor
+# Output: 1.3.0-rc
+
 # Automatically bump based on commits
 version-it auto-bump
 # Analyzes git commits since last version tag and bumps accordingly
@@ -82,6 +101,7 @@ Create a `.version-it` file in your project:
 ```yaml
 versioning-scheme: calver
 first-version: 25.10.01
+channel: stable  # Optional: release channel (stable, beta, nightly, or custom)
 current-version-file: version.txt  # Optional: read/write current version from/to this file
 version-headers:
 - path: include/version.h
@@ -103,6 +123,7 @@ package-files:
 Templates use Handlebars syntax and are completely language-independent. Available variables:
 - `{{version}}`: The current version string
 - `{{scheme}}`: The versioning scheme (semantic, calver, etc.)
+- `{{channel}}`: The release channel (stable, beta, nightly, etc.)
 
 You can specify templates inline with the `template` field or reference external template files with `template-path`.
 

@@ -28,6 +28,9 @@ enum Commands {
         /// Versioning scheme (optional, uses config or defaults to semantic)
         #[arg(short, long)]
         scheme: Option<String>,
+        /// Release channel (stable, beta, nightly, or custom)
+        #[arg(long)]
+        channel: Option<String>,
         /// Create a git tag after bumping
         #[arg(long)]
         create_tag: bool,
@@ -49,6 +52,9 @@ enum Commands {
         /// Versioning scheme (optional, uses config or defaults to semantic)
         #[arg(short, long)]
         scheme: Option<String>,
+        /// Release channel (stable, beta, nightly, or custom)
+        #[arg(long)]
+        channel: Option<String>,
     },
     /// Automatically bump version based on commits
     AutoBump {
@@ -64,14 +70,15 @@ enum Commands {
     },
 }
 
-fn get_version_info_with_scheme(version: Option<String>, config: &Option<Config>, scheme_override: Option<String>) -> VersionInfo {
+fn get_version_info_with_scheme(version: Option<String>, config: &Option<Config>, scheme_override: Option<String>, channel_override: Option<String>) -> VersionInfo {
     let version_str = version.or_else(|| config.as_ref().and_then(|c| c.get_current_version().ok())).unwrap_or_else(|| {
         eprintln!("No version provided and no config found");
         process::exit(1);
     });
 
     let scheme = scheme_override.or_else(|| config.as_ref().map(|c| c.versioning_scheme.clone())).unwrap_or_else(|| "semantic".to_string());
-    VersionInfo::new(&version_str, &scheme).unwrap_or_else(|e| {
+    let channel = channel_override.or_else(|| config.as_ref().and_then(|c| c.channel.clone()));
+    VersionInfo::new(&version_str, &scheme, channel).unwrap_or_else(|e| {
         eprintln!("Error parsing version: {}", e);
         process::exit(1);
     })
@@ -155,8 +162,8 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Bump { version, bump, scheme, create_tag, commit, dry_run } => {
-            let mut v = get_version_info_with_scheme(version, &config, scheme);
+        Commands::Bump { version, bump, scheme, channel, create_tag, commit, dry_run } => {
+            let mut v = get_version_info_with_scheme(version, &config, scheme, channel);
             apply_bump(&mut v, &bump);
 
             let new_version = v.to_string();
@@ -193,7 +200,7 @@ fn main() {
                             process::exit(1);
                         }
                     }
-                    if let Err(e) = cfg.generate_headers(&new_version) {
+                    if let Err(e) = cfg.generate_headers(&new_version, v.channel.as_deref()) {
                         eprintln!("Error generating headers: {}", e);
                         process::exit(1);
                     }
@@ -219,8 +226,8 @@ fn main() {
                 }
             }
         }
-        Commands::Next { version, bump, scheme } => {
-            let mut v = get_version_info_with_scheme(version, &config, scheme);
+        Commands::Next { version, bump, scheme, channel } => {
+            let mut v = get_version_info_with_scheme(version, &config, scheme, channel);
             apply_bump(&mut v, &bump);
 
             println!("{}", v.to_string());
@@ -233,7 +240,7 @@ fn main() {
                         let current_version = cfg.get_current_version().unwrap_or_else(|_| {
                             cfg.get_latest_version_tag().unwrap_or(Some(cfg.first_version.clone())).unwrap_or(cfg.first_version.clone())
                         });
-                        let mut v = VersionInfo::new(&current_version, &cfg.versioning_scheme).unwrap_or_else(|e| {
+                        let mut v = VersionInfo::new(&current_version, &cfg.versioning_scheme, cfg.channel.clone()).unwrap_or_else(|e| {
                             eprintln!("Error parsing version: {}", e);
                             process::exit(1);
                         });
@@ -279,7 +286,7 @@ fn main() {
                                     process::exit(1);
                                 }
                             }
-                            if let Err(e) = cfg.generate_headers(&new_version) {
+                            if let Err(e) = cfg.generate_headers(&new_version, v.channel.as_deref()) {
                                 eprintln!("Error generating headers: {}", e);
                                 process::exit(1);
                             }

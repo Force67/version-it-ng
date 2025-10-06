@@ -1,3 +1,3 @@
 """Version information for the project."""
-VERSION = "25.10.10"
+VERSION = "1.2.4-beta.1"
 SCHEME = "calver"

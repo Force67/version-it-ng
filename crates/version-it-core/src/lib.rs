@@ -20,6 +20,7 @@ pub enum VersionType {
 pub struct VersionInfo {
     pub scheme: String,
     pub version: VersionType,
+    pub channel: Option<String>,
 }
 
 impl VersionInfo {
@@ -29,11 +30,12 @@ impl VersionInfo {
     ///
     /// * `version` - The version string to parse.
     /// * `scheme` - The versioning scheme: "semantic", "calver", "timestamp", or "commit".
+    /// * `channel` - Optional channel name (stable, beta, nightly, etc.)
     ///
     /// # Returns
     ///
     /// A Result containing the VersionInfo or an error if parsing fails.
-    pub fn new(version: &str, scheme: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(version: &str, scheme: &str, channel: Option<String>) -> Result<Self, Box<dyn std::error::Error>> {
         let version_type = match scheme {
             "calver" => {
                 let parts: Vec<&str> = version.split('.').collect();
@@ -89,6 +91,7 @@ impl VersionInfo {
         Ok(Self {
             scheme: scheme.to_string(),
             version: version_type,
+            channel: channel,
         })
     }
 
@@ -182,7 +185,7 @@ impl VersionInfo {
 
     /// Returns the version as a string.
     pub fn to_string(&self) -> String {
-        match &self.version {
+        let base_version = match &self.version {
             VersionType::Calver { year, month, day } => format!("{:02}.{:02}.{:02}", year, month, day),
             VersionType::Semantic(v) => v.to_string(),
             VersionType::Timestamp(s) => s.clone(),
@@ -191,6 +194,33 @@ impl VersionInfo {
             VersionType::Monotonic(n) => n.to_string(),
             VersionType::Datetime(s) => s.clone(),
             VersionType::Pattern(s) => s.clone(),
+        };
+
+        if let Some(ref channel) = self.channel {
+            match channel.as_str() {
+                "stable" => base_version,
+                "beta" => {
+                    if let VersionType::Semantic(ref v) = self.version {
+                        if v.pre.is_empty() {
+                            format!("{}-beta.1", base_version)
+                        } else {
+                            base_version
+                        }
+                    } else {
+                        format!("{}-beta", base_version)
+                    }
+                }
+                "nightly" => {
+                    if matches!(self.version, VersionType::Timestamp(_) | VersionType::Commit(_)) {
+                        base_version
+                    } else {
+                        format!("{}-nightly", base_version)
+                    }
+                }
+                _ => format!("{}-{}", base_version, channel),
+            }
+        } else {
+            base_version
         }
     }
 
@@ -296,6 +326,9 @@ pub struct Config {
     #[serde(rename = "package-files")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_files: Option<Vec<PackageFile>>,
+    #[serde(rename = "channel")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
 }
 
 impl Config {
@@ -430,11 +463,12 @@ impl Config {
     /// # Arguments
     ///
     /// * `version` - The version string to include in the headers.
+    /// * `channel` - Optional channel name to include in the headers.
     ///
     /// # Returns
     ///
     /// A Result indicating success or failure.
-    pub fn generate_headers(&self, version: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn generate_headers(&self, version: &str, channel: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(headers) = &self.version_headers {
             let handlebars = handlebars::Handlebars::new();
             for header in headers {
@@ -447,7 +481,8 @@ impl Config {
                 };
                 let data = serde_json::json!({
                     "version": version,
-                    "scheme": self.versioning_scheme
+                    "scheme": self.versioning_scheme,
+                    "channel": channel.unwrap_or("")
                 });
                 let content = handlebars.render_template(&template, &data)?;
                 std::fs::write(&header.path, content)?;
@@ -547,49 +582,49 @@ mod tests {
 
     #[test]
     fn test_bump_major() {
-        let mut v = VersionInfo::new("1.2.3", "semantic").unwrap();
+        let mut v = VersionInfo::new("1.2.3", "semantic", None).unwrap();
         v.bump_major();
         assert_eq!(v.to_string(), "2.0.0");
     }
 
     #[test]
     fn test_bump_minor() {
-        let mut v = VersionInfo::new("1.2.3", "semantic").unwrap();
+        let mut v = VersionInfo::new("1.2.3", "semantic", None).unwrap();
         v.bump_minor();
         assert_eq!(v.to_string(), "1.3.0");
     }
 
     #[test]
     fn test_bump_patch() {
-        let mut v = VersionInfo::new("1.2.3", "semantic").unwrap();
+        let mut v = VersionInfo::new("1.2.3", "semantic", None).unwrap();
         v.bump_patch();
         assert_eq!(v.to_string(), "1.2.4");
     }
 
     #[test]
     fn test_calver_bump_minor() {
-        let mut v = VersionInfo::new("25.10.01", "calver").unwrap();
+        let mut v = VersionInfo::new("25.10.01", "calver", None).unwrap();
         v.bump_minor();
         assert_eq!(v.to_string(), "25.11.01");
     }
 
     #[test]
     fn test_calver_bump_major() {
-        let mut v = VersionInfo::new("25.10.01", "calver").unwrap();
+        let mut v = VersionInfo::new("25.10.01", "calver", None).unwrap();
         v.bump_major();
         assert_eq!(v.to_string(), "26.01.01");
     }
 
     #[test]
     fn test_timestamp_new() {
-        let v = VersionInfo::new("", "timestamp").unwrap();
+        let v = VersionInfo::new("", "timestamp", None).unwrap();
         assert!(v.to_string().len() == 14); // YYYYMMDDHHMMSS
     }
 
     #[test]
     fn test_commit_new() {
         // This will fail if no git, but assume it's there
-        let v = VersionInfo::new("", "commit");
+        let v = VersionInfo::new("", "commit", None);
         if let Ok(v) = v {
             assert!(v.to_string().len() > 0);
         }
@@ -597,61 +632,61 @@ mod tests {
 
     #[test]
     fn test_versioninfo_new_semantic() {
-        let v = VersionInfo::new("1.2.3", "semantic").unwrap();
+        let v = VersionInfo::new("1.2.3", "semantic", None).unwrap();
         assert_eq!(v.scheme, "semantic");
         assert_eq!(v.to_string(), "1.2.3");
     }
 
     #[test]
     fn test_versioninfo_new_calver() {
-        let v = VersionInfo::new("25.10.01", "calver").unwrap();
+        let v = VersionInfo::new("25.10.01", "calver", None).unwrap();
         assert_eq!(v.scheme, "calver");
         assert_eq!(v.to_string(), "25.10.01");
     }
 
     #[test]
     fn test_versioninfo_new_timestamp() {
-        let v = VersionInfo::new("20231005120000", "timestamp").unwrap();
+        let v = VersionInfo::new("20231005120000", "timestamp", None).unwrap();
         assert_eq!(v.scheme, "timestamp");
         assert_eq!(v.to_string(), "20231005120000");
     }
 
     #[test]
     fn test_versioninfo_new_commit() {
-        let v = VersionInfo::new("abc123", "commit").unwrap();
+        let v = VersionInfo::new("abc123", "commit", None).unwrap();
         assert_eq!(v.scheme, "commit");
         assert_eq!(v.to_string(), "abc123");
     }
 
     #[test]
     fn test_versioninfo_new_invalid_semantic() {
-        let result = VersionInfo::new("invalid", "semantic");
+        let result = VersionInfo::new("invalid", "semantic", None);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_versioninfo_new_invalid_calver() {
-        let result = VersionInfo::new("25", "calver");
+        let result = VersionInfo::new("25", "calver", None);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_set_prerelease() {
-        let mut v = VersionInfo::new("1.2.3", "semantic").unwrap();
+        let mut v = VersionInfo::new("1.2.3", "semantic", None).unwrap();
         v.set_prerelease("alpha.1");
         assert_eq!(v.to_string(), "1.2.3-alpha.1");
     }
 
     #[test]
     fn test_set_build() {
-        let mut v = VersionInfo::new("1.2.3", "semantic").unwrap();
+        let mut v = VersionInfo::new("1.2.3", "semantic", None).unwrap();
         v.set_build("build.1");
         assert_eq!(v.to_string(), "1.2.3+build.1");
     }
 
     #[test]
     fn test_set_prerelease_and_build() {
-        let mut v = VersionInfo::new("1.2.3", "semantic").unwrap();
+        let mut v = VersionInfo::new("1.2.3", "semantic", None).unwrap();
         v.set_prerelease("beta");
         v.set_build("sha.123");
         assert_eq!(v.to_string(), "1.2.3-beta+sha.123");
@@ -701,6 +736,7 @@ version-headers:
             change_type_map: vec![],
             version_headers: None,
             package_files: None,
+            channel: None,
         };
         let version = config.get_current_version().unwrap();
         assert_eq!(version, "2.1.0");
@@ -721,6 +757,7 @@ version-headers:
             change_type_map: vec![],
             version_headers: None,
             package_files: None,
+            channel: None,
         };
         let version = config.get_current_version().unwrap();
         assert_eq!(version, "1.0.0");
@@ -767,8 +804,9 @@ version-headers:
                 },
             ]),
             package_files: None,
+            channel: None,
         };
-        config.generate_headers("2.0.0").unwrap();
+        config.generate_headers("2.0.0", None).unwrap();
         let c_content = fs::read_to_string("test_version.h").unwrap();
         assert_eq!(c_content, "#define VERSION \"2.0.0\"\n");
         let py_content = fs::read_to_string("test_version.py").unwrap();
@@ -791,8 +829,9 @@ version-headers:
             change_type_map: vec![],
             version_headers: None,
             package_files: None,
+            channel: None,
         };
-        let result = config.generate_headers("2.0.0");
+        let result = config.generate_headers("2.0.0", None);
         assert!(result.is_ok());
     }
 
@@ -810,6 +849,7 @@ version-headers:
             change_type_map: vec![],
             version_headers: None,
             package_files: None,
+            channel: None,
         };
         // Since no git repo, get_current_branch will fail, so should return Err or None
         let result = config.analyze_commits_for_bump();
@@ -819,56 +859,80 @@ version-headers:
 
     #[test]
     fn test_versioninfo_new_build() {
-        let v = VersionInfo::new("1.2.3.4", "build").unwrap();
+        let v = VersionInfo::new("1.2.3.4", "build", None).unwrap();
         assert_eq!(v.scheme, "build");
         assert_eq!(v.to_string(), "1.2.3.4");
     }
 
     #[test]
     fn test_versioninfo_new_monotonic() {
-        let v = VersionInfo::new("42", "monotonic").unwrap();
+        let v = VersionInfo::new("42", "monotonic", None).unwrap();
         assert_eq!(v.scheme, "monotonic");
         assert_eq!(v.to_string(), "42");
     }
 
     #[test]
+    fn test_channel_stable() {
+        let v = VersionInfo::new("1.2.3", "semantic", Some("stable".to_string())).unwrap();
+        assert_eq!(v.to_string(), "1.2.3");
+    }
+
+    #[test]
+    fn test_channel_beta() {
+        let v = VersionInfo::new("1.2.3", "semantic", Some("beta".to_string())).unwrap();
+        assert_eq!(v.to_string(), "1.2.3-beta.1");
+    }
+
+    #[test]
+    fn test_channel_nightly() {
+        let v = VersionInfo::new("20241006", "timestamp", Some("nightly".to_string())).unwrap();
+        assert_eq!(v.to_string(), "20241006");
+    }
+
+    #[test]
+    fn test_channel_custom() {
+        let v = VersionInfo::new("1.2.3", "semantic", Some("rc".to_string())).unwrap();
+        assert_eq!(v.to_string(), "1.2.3-rc");
+    }
+
+    #[test]
     fn test_versioninfo_new_datetime() {
-        let v = VersionInfo::new("2024-10-06T14:30:00", "datetime").unwrap();
+        let v = VersionInfo::new("2024-10-06T14:30:00", "datetime", None).unwrap();
         assert_eq!(v.scheme, "datetime");
         assert_eq!(v.to_string(), "2024-10-06T14:30:00");
     }
 
     #[test]
     fn test_versioninfo_new_pattern() {
-        let v = VersionInfo::new("v1.0.0-snapshot", "pattern").unwrap();
+        let v = VersionInfo::new("v1.0.0-snapshot", "pattern", None).unwrap();
         assert_eq!(v.scheme, "pattern");
         assert_eq!(v.to_string(), "v1.0.0-snapshot");
     }
 
     #[test]
     fn test_build_bump_major() {
-        let mut v = VersionInfo::new("1.2.3.4", "build").unwrap();
+        let mut v = VersionInfo::new("1.2.3.4", "build", None).unwrap();
         v.bump_major();
         assert_eq!(v.to_string(), "2.0.0.4");
     }
 
     #[test]
     fn test_build_bump_minor() {
-        let mut v = VersionInfo::new("1.2.3.4", "build").unwrap();
+        let mut v = VersionInfo::new("1.2.3.4", "build", None).unwrap();
         v.bump_minor();
         assert_eq!(v.to_string(), "1.3.0.4");
     }
 
     #[test]
     fn test_build_bump_patch() {
-        let mut v = VersionInfo::new("1.2.3.4", "build").unwrap();
+        let mut v = VersionInfo::new("1.2.3.4", "build", None).unwrap();
         v.bump_patch();
         assert_eq!(v.to_string(), "1.2.4.0");
     }
 
     #[test]
     fn test_monotonic_bump() {
-        let mut v = VersionInfo::new("42", "monotonic").unwrap();
+        let mut v = VersionInfo::new("42", "monotonic", None).unwrap();
         v.bump_major();
         assert_eq!(v.to_string(), "43");
         v.bump_minor();
@@ -879,7 +943,7 @@ version-headers:
 
     #[test]
     fn test_datetime_bump() {
-        let mut v = VersionInfo::new("2024-10-06T14:30:00", "datetime").unwrap();
+        let mut v = VersionInfo::new("2024-10-06T14:30:00", "datetime", None).unwrap();
         let original = v.to_string();
         v.bump_major();
         assert_ne!(v.to_string(), original); // should update to current time
@@ -887,7 +951,7 @@ version-headers:
 
     #[test]
     fn test_pattern_bump() {
-        let mut v = VersionInfo::new("v1.0.0", "pattern").unwrap();
+        let mut v = VersionInfo::new("v1.0.0", "pattern", None).unwrap();
         v.bump_major();
         assert_eq!(v.to_string(), "v1.0.0-updated");
     }
