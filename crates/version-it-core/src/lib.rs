@@ -248,7 +248,7 @@ impl VersionInfo {
     }
 
     fn _commit_date() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ci"]).output()?;
+        let output = Command::new("git").args(["log", "-1", "--pretty=format:%ci"]).output()?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
