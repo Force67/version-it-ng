@@ -2,9 +2,9 @@ use semver::{Version, Prerelease, BuildMetadata};
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use std::process::Command;
-use walkdir;
 use std::time::{SystemTime, UNIX_EPOCH};
 use sysinfo::System;
+use std::fmt;
 
 
 #[derive(Debug, Clone)]
@@ -94,7 +94,7 @@ impl VersionInfo {
         Ok(Self {
             scheme: scheme.to_string(),
             version: version_type,
-            channel: channel,
+            channel,
         })
     }
 
@@ -186,8 +186,115 @@ impl VersionInfo {
         }
     }
 
-    /// Returns the version as a string.
-    pub fn to_string(&self) -> String {
+
+
+    fn current_timestamp() -> String {
+        let now: DateTime<Utc> = Utc::now();
+        now.format("%Y%m%d%H%M%S").to_string()
+    }
+
+    fn current_commit() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(["rev-parse", "--short", "HEAD"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get git commit".into())
+        }
+    }
+
+    fn _current_commit_full() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(["rev-parse", "HEAD"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get git commit".into())
+        }
+    }
+
+    fn _current_branch() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(["rev-parse", "--abbrev-ref", "HEAD"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get git branch".into())
+        }
+    }
+
+    fn _latest_tag() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(["describe", "--tags", "--abbrev=0"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Ok("".to_string()) // No tags found
+        }
+    }
+
+    fn _commit_author() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(["log", "-1", "--pretty=format:%an"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit author".into())
+        }
+    }
+
+    fn _commit_email() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(["log", "-1", "--pretty=format:%ae"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit email".into())
+        }
+    }
+
+    fn _commit_date() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ci"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit date".into())
+        }
+    }
+
+    fn current_datetime() -> String {
+        let now: DateTime<Utc> = Utc::now();
+        now.format("%Y-%m-%dT%H:%M:%S").to_string()
+    }
+
+    fn os_info() -> String {
+        std::env::consts::OS.to_string()
+    }
+
+    fn arch_info() -> String {
+        std::env::consts::ARCH.to_string()
+    }
+
+    fn rustc_version() -> String {
+        // Try to get rustc version
+        if let Ok(output) = Command::new("rustc").args(["--version"]).output() {
+            if output.status.success() {
+                return String::from_utf8_lossy(&output.stdout).trim().to_string();
+            }
+        }
+        "unknown".to_string()
+    }
+
+    fn available_memory() -> String {
+        let mut sys = System::new_all();
+        sys.refresh_all();
+        let total_memory = sys.total_memory();
+        let available_memory = sys.available_memory();
+        format!("{} MB total, {} MB available", total_memory / 1024 / 1024, available_memory / 1024 / 1024)
+    }
+
+    fn cpu_count() -> usize {
+        num_cpus::get()
+    }
+
+}
+
+impl fmt::Display for VersionInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let base_version = match &self.version {
             VersionType::Calver { year, month, day } => format!("{:02}.{:02}.{:02}", year, month, day),
             VersionType::Semantic(v) => v.to_string(),
@@ -199,7 +306,7 @@ impl VersionInfo {
             VersionType::Pattern(s) => s.clone(),
         };
 
-        if let Some(ref channel) = self.channel {
+        let version_str = if let Some(ref channel) = self.channel {
             match channel.as_str() {
                 "stable" => base_version,
                 "beta" => {
@@ -224,132 +331,12 @@ impl VersionInfo {
             }
         } else {
             base_version
-        }
+        };
+
+        write!(f, "{}", version_str)
     }
-
-    fn current_timestamp() -> String {
-        let now: DateTime<Utc> = Utc::now();
-        now.format("%Y%m%d%H%M%S").to_string()
-    }
-
-    fn current_commit() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["rev-parse", "--short", "HEAD"]).output()?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-        } else {
-            Err("Failed to get git commit".into())
-        }
-    }
-
-    fn current_commit_full() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["rev-parse", "HEAD"]).output()?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-        } else {
-            Err("Failed to get git commit".into())
-        }
-    }
-
-    fn current_branch() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["rev-parse", "--abbrev-ref", "HEAD"]).output()?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-        } else {
-            Err("Failed to get git branch".into())
-        }
-    }
-
-    fn latest_tag() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["describe", "--tags", "--abbrev=0"]).output()?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-        } else {
-            Ok("".to_string()) // No tags found
-        }
-    }
-
-    fn commit_author() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%an"]).output()?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-        } else {
-            Err("Failed to get commit author".into())
-        }
-    }
-
-    fn commit_email() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ae"]).output()?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-        } else {
-            Err("Failed to get commit email".into())
-        }
-    }
-
-    fn commit_date() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ci"]).output()?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-        } else {
-            Err("Failed to get commit date".into())
-        }
-    }
-
-    fn current_datetime() -> String {
-        let now: DateTime<Utc> = Utc::now();
-        now.format("%Y-%m-%dT%H:%M:%S").to_string()
-    }
-
-    fn build_date() -> String {
-        let now: DateTime<Utc> = Utc::now();
-        now.format("%Y-%m-%d").to_string()
-    }
-
-    fn build_time() -> String {
-        let now: DateTime<Utc> = Utc::now();
-        now.format("%H:%M:%S").to_string()
-    }
-
-    fn hostname() -> String {
-        std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string())
-    }
-
-    fn username() -> String {
-        std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_else(|_| "unknown".to_string())
-    }
-
-    fn os_info() -> String {
-        std::env::consts::OS.to_string()
-    }
-
-    fn arch_info() -> String {
-        std::env::consts::ARCH.to_string()
-    }
-
-    fn rustc_version() -> String {
-        // Try to get rustc version
-        if let Ok(output) = Command::new("rustc").args(&["--version"]).output() {
-            if output.status.success() {
-                return String::from_utf8_lossy(&output.stdout).trim().to_string();
-            }
-        }
-        "unknown".to_string()
-    }
-
-    fn available_memory() -> String {
-        let mut sys = System::new_all();
-        sys.refresh_all();
-        let total_memory = sys.total_memory();
-        let available_memory = sys.available_memory();
-        format!("{} MB total, {} MB available", total_memory / 1024 / 1024, available_memory / 1024 / 1024)
-    }
-
-    fn cpu_count() -> usize {
-        num_cpus::get()
-    }
-
-
 }
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangelogExporters {
@@ -505,7 +492,7 @@ impl Config {
     }
 
     fn get_current_branch(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["rev-parse", "--abbrev-ref", "HEAD"]).output()?;
+        let output = Command::new("git").args(["rev-parse", "--abbrev-ref", "HEAD"]).output()?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
@@ -514,7 +501,7 @@ impl Config {
     }
 
     pub fn get_latest_version_tag(&self) -> Result<Option<String>, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["tag", "--list", "--sort=-version:refname"]).output()?;
+        let output = Command::new("git").args(["tag", "--list", "--sort=-version:refname"]).output()?;
         if output.status.success() {
             let tags = String::from_utf8_lossy(&output.stdout);
             for tag in tags.lines() {
@@ -529,13 +516,13 @@ impl Config {
     fn is_version_tag(&self, tag: &str) -> bool {
         match self.versioning_scheme.as_str() {
             "semantic" => Version::parse(tag).is_ok(),
-            "calver" => tag.contains('.') && tag.chars().all(|c| c.is_digit(10) || c == '.'),
+            "calver" => tag.contains('.') && tag.chars().all(|c| c.is_ascii_digit() || c == '.'),
             _ => true, // for others, assume any tag
         }
     }
 
     fn get_commits_since(&self, since: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["log", "--oneline", &format!("{}..HEAD", since)]).output()?;
+        let output = Command::new("git").args(["log", "--oneline", &format!("{}..HEAD", since)]).output()?;
         if output.status.success() {
             let commits = String::from_utf8_lossy(&output.stdout);
             Ok(commits.lines().map(|l| l.to_string()).collect())
@@ -590,7 +577,7 @@ impl Config {
     }
 
     fn current_commit_full() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["rev-parse", "HEAD"]).output()?;
+        let output = Command::new("git").args(["rev-parse", "HEAD"]).output()?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
@@ -599,7 +586,7 @@ impl Config {
     }
 
     fn current_branch() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["rev-parse", "--abbrev-ref", "HEAD"]).output()?;
+        let output = Command::new("git").args(["rev-parse", "--abbrev-ref", "HEAD"]).output()?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
@@ -608,7 +595,7 @@ impl Config {
     }
 
     fn latest_tag() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["describe", "--tags", "--abbrev=0"]).output()?;
+        let output = Command::new("git").args(["describe", "--tags", "--abbrev=0"]).output()?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
@@ -617,7 +604,7 @@ impl Config {
     }
 
     fn commit_author() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%an"]).output()?;
+        let output = Command::new("git").args(["log", "-1", "--pretty=format:%an"]).output()?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
@@ -626,7 +613,7 @@ impl Config {
     }
 
     fn commit_email() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ae"]).output()?;
+        let output = Command::new("git").args(["log", "-1", "--pretty=format:%ae"]).output()?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
@@ -635,7 +622,7 @@ impl Config {
     }
 
     fn commit_date() -> Result<String, Box<dyn std::error::Error>> {
-        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ci"]).output()?;
+        let output = Command::new("git").args(["log", "-1", "--pretty=format:%ci"]).output()?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
@@ -668,7 +655,7 @@ impl Config {
 
     fn recent_commits(limit: usize) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
         let output = Command::new("git")
-            .args(&["log", &format!("-{}", limit), "--oneline", "--pretty=format:%H|%h|%s|%an|%ae|%ci"])
+            .args(["log", &format!("-{}", limit), "--oneline", "--pretty=format:%H|%h|%s|%an|%ae|%ci"])
             .output()?;
 
         if !output.status.success() {
@@ -697,7 +684,7 @@ impl Config {
 
     fn commit_count() -> Result<u64, Box<dyn std::error::Error>> {
         let output = Command::new("git")
-            .args(&["rev-list", "--count", "HEAD"])
+            .args(["rev-list", "--count", "HEAD"])
             .output()?;
 
         if output.status.success() {
@@ -710,7 +697,7 @@ impl Config {
 
     fn first_commit_date() -> Result<String, Box<dyn std::error::Error>> {
         let output = Command::new("git")
-            .args(&["log", "--reverse", "--pretty=format:%ci", "-1"])
+            .args(["log", "--reverse", "--pretty=format:%ci", "-1"])
             .output()?;
 
         if output.status.success() {
@@ -754,7 +741,7 @@ impl Config {
     fn gather_stats(&self) -> serde_json::Value {
         // Check for cached stats first
         let cache_file = ".version-it-stats-cache.json";
-        if let Ok(metadata) = std::fs::metadata(cache_file) {
+        if let Ok(_metadata) = std::fs::metadata(cache_file) {
             if let Ok(cache_content) = std::fs::read_to_string(cache_file) {
                 if let Ok(cache) = serde_json::from_str::<serde_json::Value>(&cache_content) {
                     // Check if cache is still valid (within last hour)
@@ -781,7 +768,7 @@ impl Config {
 
         // Approximate lines of code (very basic)
         let mut lines_of_code = 0;
-        let _ = walkdir::WalkDir::new(".")
+        walkdir::WalkDir::new(".")
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
