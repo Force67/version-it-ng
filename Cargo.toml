@@ -1,5 +1,3 @@
-version = "25.10.02"
-
 [workspace]
 members = ["crates/version-it-core", "crates/version-it-cli"]
 resolver = "2"
