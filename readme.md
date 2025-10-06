@@ -55,6 +55,13 @@ version-it bump --version 1.2.3 --scheme build --bump patch
 # Automatically bump based on commits
 version-it auto-bump
 # Analyzes git commits since last version tag and bumps accordingly
+
+# Bump with git operations
+version-it bump --version 1.0.0 --bump minor --commit --create-tag
+# Bumps version, commits changes, and creates annotated git tag
+
+version-it auto-bump --commit --create-tag
+# Auto-bump with automatic commit and tag creation
 ```
 
 ## Configuration
@@ -76,6 +83,12 @@ version-headers:
     #define VERSION_H
     #define VERSION "{{version}}"
     #endif
+
+package-files:
+- path: package.json
+  manager: npm
+- path: Cargo.toml
+  manager: cargo
 ```
 
 ## Templates
@@ -87,6 +100,28 @@ Templates use Handlebars syntax and are completely language-independent. Availab
 You can specify templates inline with the `template` field or reference external template files with `template-path`.
 
 See `examples/templates/` for sample templates.
+
+## Package Files
+
+The tool can automatically update version fields in package manager files:
+
+- **npm**: Updates `package.json` version field
+- **cargo**: Updates `Cargo.toml` version field
+- **python**: Updates `__version__` in Python files
+- **maven**: Updates `<version>` tags in `pom.xml`
+
+Configure package files in your `.version-it` config:
+
+```yaml
+package-files:
+- path: package.json
+  manager: npm
+- path: Cargo.toml
+  manager: cargo
+- path: pyproject.toml
+  manager: python
+  field: __version__  # Optional: specify field name
+```
 
 ## Development
 

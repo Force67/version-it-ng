@@ -1,14 +1,13 @@
+version = "25.10.10"
+
 [workspace]
+members = ["crates/version-it-core", "crates/version-it-cli"]
 resolver = "2"
-members = [
-    "crates/version-it-core",
-    "crates/version-it-cli",
-]
 
 [workspace.package]
-version = "0.1.0"
-edition = "2021"
 authors = ["Your Name"]
+description = "A semantic versioning tool for CI pipelines"
+edition = "2021"
 license = "MIT"
 repository = "https://github.com/yourusername/version-it"
-description = "A semantic versioning tool for CI pipelines"
+version = "0.1.0"

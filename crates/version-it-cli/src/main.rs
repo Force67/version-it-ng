@@ -167,6 +167,10 @@ fn main() {
                     eprintln!("Error generating headers: {}", e);
                     process::exit(1);
                 }
+                if let Err(e) = cfg.update_package_files(&new_version) {
+                    eprintln!("Error updating package files: {}", e);
+                    process::exit(1);
+                }
             }
 
             // Git operations
@@ -224,6 +228,10 @@ fn main() {
                         }
                         if let Err(e) = cfg.generate_headers(&new_version) {
                             eprintln!("Error generating headers: {}", e);
+                            process::exit(1);
+                        }
+                        if let Err(e) = cfg.update_package_files(&new_version) {
+                            eprintln!("Error updating package files: {}", e);
                             process::exit(1);
                         }
 

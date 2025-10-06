@@ -1,0 +1,16 @@
+{
+  "author": "Your Name",
+  "description": "A versioning tool",
+  "keywords": [
+    "versioning",
+    "ci",
+    "tool"
+  ],
+  "license": "MIT",
+  "main": "index.js",
+  "name": "version-it",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "25.10.10"
+}
