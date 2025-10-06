@@ -67,6 +67,7 @@ change-type-map: []
 version-headers:
   - path: "{}"
     template: "{}"
+commit-based-bumping: false
 "#, version_file, header_file, template);
     fs::write(config_path, yaml).unwrap();
 

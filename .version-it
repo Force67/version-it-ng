@@ -20,6 +20,9 @@ changelog-exporters:
 # whether to include the branch name in the version e.g. 1.0.0-branch-name
 calver-enable-branch: true
 
+# enable automatic version bumping based on commit messages
+commit-based-bumping: true
+
 # heading titles for a given changelog label
 changelog-sections:
 - title: Added
@@ -71,6 +74,10 @@ change-type-map:
   action: patch
 - label: style
   action: patch
+# Example regex pattern for breaking changes
+- label: "BREAKING"
+  pattern: ".*BREAKING.*"
+  action: major
 
 version-headers:
 - path: include/version.h

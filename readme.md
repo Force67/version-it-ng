@@ -73,7 +73,7 @@ version-it bump --version 1.2.3 --channel rc --bump minor
 
 # Automatically bump based on commits
 version-it auto-bump
-# Analyzes git commits since last version tag and bumps accordingly
+# Analyzes git commits since last version tag and bumps accordingly (when enabled)
 
 # Bump with git operations
 version-it bump --version 1.0.0 --bump minor --commit --create-tag
@@ -103,6 +103,7 @@ versioning-scheme: calver
 first-version: 25.10.01
 channel: stable  # Optional: release channel (stable, beta, nightly, or custom)
 current-version-file: version.txt  # Optional: read/write current version from/to this file
+commit-based-bumping: true  # Optional: enable automatic bumping based on commit messages
 version-headers:
 - path: include/version.h
   template: |
@@ -177,9 +178,31 @@ repo/
 
 Run commands with `--config subproject1/.version-it` to work on specific subprojects.
 
+## Commit-Based Bumping
+
+Enable automatic version bumping based on commit messages by setting `commit-based-bumping: true` in your config. Define patterns that map to version bump types:
+
+```yaml
+commit-based-bumping: true
+change-type-map:
+  - label: "feat"
+    action: minor
+  - label: "fix"
+    action: patch
+  - label: "BREAKING"
+    action: major
+  # Regex patterns for more complex matching
+  - pattern: "feat.*\\(major\\)"
+    action: major
+  - pattern: "fix.*security"
+    action: minor
+```
+
+Available actions: `patch`, `minor`, `major`, `null` (ignore)
+
 ## CI Integration
 
-The `auto-bump` command analyzes git commits since the last version tag and determines the appropriate bump based on configured labels:
+When `commit-based-bumping` is enabled, the `auto-bump` command analyzes git commits since the last version tag and determines the appropriate bump based on configured labels:
 
 - Checks if current branch is in `run-on-branches`
 - Finds commits since last version tag

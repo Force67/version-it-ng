@@ -278,6 +278,8 @@ pub enum ChangeAction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangeTypeMap {
     pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
     pub action: ChangeAction,
 }
 
@@ -329,6 +331,8 @@ pub struct Config {
     #[serde(rename = "channel")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel: Option<String>,
+    #[serde(rename = "commit-based-bumping")]
+    pub commit_based_bumping: bool,
 }
 
 impl Config {
@@ -362,6 +366,11 @@ impl Config {
     ///
     /// A Result containing Some(bump_type) if a bump is needed, None otherwise, or an error.
     pub fn analyze_commits_for_bump(&self) -> Result<Option<String>, Box<dyn std::error::Error>> {
+        // Check if commit-based bumping is enabled
+        if !self.commit_based_bumping {
+            return Ok(None);
+        }
+
         // Check if current branch is allowed
         let current_branch = self.get_current_branch()?;
         if !self.run_on_branches.contains(&current_branch) {
@@ -427,9 +436,22 @@ impl Config {
     }
 
     fn determine_bump_from_commit(&self, commit: &str) -> Option<String> {
-        // Simple check: look for labels in commit message
+        // Check for labels/patterns in commit message
         for map in &self.change_type_map {
-            if commit.contains(&map.label) {
+            let matches = if let Some(ref pattern) = map.pattern {
+                // Use regex matching
+                if let Ok(re) = regex::Regex::new(pattern) {
+                    re.is_match(commit)
+                } else {
+                    // If regex is invalid, fall back to simple contains
+                    commit.contains(&map.label)
+                }
+            } else {
+                // Use simple string contains for backward compatibility
+                commit.contains(&map.label)
+            };
+
+            if matches {
                 match map.action {
                     ChangeAction::Minor => return Some("minor".to_string()),
                     ChangeAction::Patch => return Some("patch".to_string()),
@@ -712,6 +734,7 @@ version-headers:
   - path: include/version.h
     template: |
       #define VERSION "{{version}}"
+commit-based-bumping: true
 "#;
         fs::write("test_config.yml", yaml).unwrap();
         let config = Config::load_from_file("test_config.yml").unwrap();
@@ -737,6 +760,7 @@ version-headers:
             version_headers: None,
             package_files: None,
             channel: None,
+            commit_based_bumping: false,
         };
         let version = config.get_current_version().unwrap();
         assert_eq!(version, "2.1.0");
@@ -758,6 +782,7 @@ version-headers:
             version_headers: None,
             package_files: None,
             channel: None,
+            commit_based_bumping: false,
         };
         let version = config.get_current_version().unwrap();
         assert_eq!(version, "1.0.0");
@@ -805,6 +830,7 @@ version-headers:
             ]),
             package_files: None,
             channel: None,
+            commit_based_bumping: false,
         };
         config.generate_headers("2.0.0", None).unwrap();
         let c_content = fs::read_to_string("test_version.h").unwrap();
@@ -830,6 +856,7 @@ version-headers:
             version_headers: None,
             package_files: None,
             channel: None,
+            commit_based_bumping: false,
         };
         let result = config.generate_headers("2.0.0", None);
         assert!(result.is_ok());
@@ -850,6 +877,7 @@ version-headers:
             version_headers: None,
             package_files: None,
             channel: None,
+            commit_based_bumping: false,
         };
         // Since no git repo, get_current_branch will fail, so should return Err or None
         let result = config.analyze_commits_for_bump();
@@ -893,6 +921,74 @@ version-headers:
     fn test_channel_custom() {
         let v = VersionInfo::new("1.2.3", "semantic", Some("rc".to_string())).unwrap();
         assert_eq!(v.to_string(), "1.2.3-rc");
+    }
+
+    #[test]
+    fn test_determine_bump_from_commit_with_label() {
+        let config = Config {
+            run_on_branches: vec![],
+            versioning_scheme: "semantic".to_string(),
+            first_version: "1.0.0".to_string(),
+            current_version_file: None,
+            changelog_exporters: None,
+            calver_enable_branch: false,
+            changelog_sections: vec![],
+            change_substitutions: vec![],
+            change_type_map: vec![
+                ChangeTypeMap {
+                    label: "feat".to_string(),
+                    pattern: None,
+                    action: ChangeAction::Minor,
+                },
+                ChangeTypeMap {
+                    label: "fix".to_string(),
+                    pattern: None,
+                    action: ChangeAction::Patch,
+                },
+            ],
+            version_headers: None,
+            package_files: None,
+            channel: None,
+            commit_based_bumping: true,
+        };
+
+        assert_eq!(config.determine_bump_from_commit("feat: add new feature"), Some("minor".to_string()));
+        assert_eq!(config.determine_bump_from_commit("fix: bug fix"), Some("patch".to_string()));
+        assert_eq!(config.determine_bump_from_commit("chore: cleanup"), None);
+    }
+
+    #[test]
+    fn test_determine_bump_from_commit_with_regex() {
+        let config = Config {
+            run_on_branches: vec![],
+            versioning_scheme: "semantic".to_string(),
+            first_version: "1.0.0".to_string(),
+            current_version_file: None,
+            changelog_exporters: None,
+            calver_enable_branch: false,
+            changelog_sections: vec![],
+            change_substitutions: vec![],
+            change_type_map: vec![
+                ChangeTypeMap {
+                    label: "feat".to_string(),
+                    pattern: Some(r"feat.*".to_string()),
+                    action: ChangeAction::Minor,
+                },
+                ChangeTypeMap {
+                    label: "fix".to_string(),
+                    pattern: Some(r"fix.*bug".to_string()),
+                    action: ChangeAction::Patch,
+                },
+            ],
+            version_headers: None,
+            package_files: None,
+            channel: None,
+            commit_based_bumping: true,
+        };
+
+        assert_eq!(config.determine_bump_from_commit("feat: add new feature"), Some("minor".to_string()));
+        assert_eq!(config.determine_bump_from_commit("fix: critical bug fix"), Some("patch".to_string()));
+        assert_eq!(config.determine_bump_from_commit("fix: typo fix"), None);
     }
 
     #[test]
