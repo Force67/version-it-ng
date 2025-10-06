@@ -1,4 +1,4 @@
-version = "1.2.4-beta.1"
+version = "25.10.02"
 
 [workspace]
 members = ["crates/version-it-core", "crates/version-it-cli"]

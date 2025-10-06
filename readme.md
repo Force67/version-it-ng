@@ -104,13 +104,21 @@ first-version: 25.10.01
 channel: stable  # Optional: release channel (stable, beta, nightly, or custom)
 current-version-file: version.txt  # Optional: read/write current version from/to this file
 commit-based-bumping: true  # Optional: enable automatic bumping based on commit messages
+enable-expensive-metrics: true  # Optional: enable expensive metrics (file/line counting) - cached for 1 hour
 version-headers:
 - path: include/version.h
-  template: |
-    #ifndef VERSION_H
-    #define VERSION_H
-    #define VERSION "{{version}}"
-    #endif
+   template: |
+     #ifndef VERSION_H
+     #define VERSION_H
+     #define VERSION "{{version}}"
+     #define SCHEME "{{scheme}}"
+     #define CHANNEL "{{channel}}"
+     #define GIT_COMMIT "{{git.commit_hash}}"
+     #define GIT_BRANCH "{{git.branch}}"
+     #define BUILD_DATE "{{build.date}}"
+     #define PROJECT_NAME "{{project.name}}"
+     #define COMMIT_COUNT {{git.commit_count}}
+     #endif
 
 package-files:
 - path: package.json
@@ -122,9 +130,46 @@ package-files:
 ## Templates
 
 Templates use Handlebars syntax and are completely language-independent. Available variables:
+
+**Version Information:**
 - `{{version}}`: The current version string
 - `{{scheme}}`: The versioning scheme (semantic, calver, etc.)
 - `{{channel}}`: The release channel (stable, beta, nightly, etc.)
+
+**Git Information:**
+- `{{git.commit_hash}}`: Short git commit hash
+- `{{git.commit_hash_full}}`: Full git commit hash
+- `{{git.branch}}`: Current git branch name
+- `{{git.tag}}`: Latest git tag (empty if none)
+- `{{git.author}}`: Commit author name
+- `{{git.email}}`: Commit author email
+- `{{git.date}}`: Commit date (ISO 8601 format)
+- `{{git.commit_count}}`: Total number of commits
+- `{{git.first_commit_date}}`: Date of first commit
+- `{{git.recent_commits}}`: Array of recent commits (last 10)
+
+**Build Information:**
+- `{{build.timestamp}}`: Build timestamp (ISO 8601 format)
+- `{{build.date}}`: Build date (YYYY-MM-DD)
+- `{{build.time}}`: Build time (HH:MM:SS)
+- `{{build.compiler}}`: Compiler version (rustc version)
+
+**System Information:**
+- `{{system.hostname}}`: System hostname
+- `{{system.username}}`: Current user name
+- `{{system.os}}`: Operating system
+- `{{system.arch}}`: System architecture
+- `{{system.cpus}}`: Number of CPU cores
+- `{{system.memory}}`: System memory (total and available in MB)
+
+**Project Information:**
+- `{{project.name}}`: Project name (from Cargo.toml)
+- `{{project.description}}`: Project description
+- `{{project.authors}}`: Array of project authors
+
+**Statistics:**
+- `{{stats.file_count}}`: Total number of files in project
+- `{{stats.lines_of_code}}`: Approximate lines of code
 
 You can specify templates inline with the `template` field or reference external template files with `template-path`.
 

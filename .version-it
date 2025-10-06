@@ -23,6 +23,9 @@ calver-enable-branch: true
 # enable automatic version bumping based on commit messages
 commit-based-bumping: true
 
+# enable expensive metrics (file counting, line counting) - cached for 1 hour
+enable-expensive-metrics: true
+
 # heading titles for a given changelog label
 changelog-sections:
 - title: Added
@@ -85,12 +88,26 @@ version-headers:
     #ifndef VERSION_H
     #define VERSION_H
     #define VERSION "{{version}}"
+    #define SCHEME "{{scheme}}"
+    #define CHANNEL "{{channel}}"
+    #define GIT_COMMIT "{{git.commit_hash}}"
+    #define GIT_BRANCH "{{git.branch}}"
+    #define BUILD_DATE "{{build.date}}"
+    #define PROJECT_NAME "{{project.name}}"
+    #define COMMIT_COUNT {{git.commit_count}}
+    #define SYSTEM_MEMORY "{{system.memory}}"
     #endif
 - path: src/version.py
   template: |
     """Version information for the project."""
     VERSION = "{{version}}"
     SCHEME = "{{scheme}}"
+    CHANNEL = "{{channel}}"
+    GIT_COMMIT = "{{git.commit_hash}}"
+    GIT_BRANCH = "{{git.branch}}"
+    BUILD_DATE = "{{build.date}}"
+    PROJECT_NAME = "{{project.name}}"
+    COMMIT_COUNT = {{git.commit_count}}
 
 package-files:
 - path: package.json

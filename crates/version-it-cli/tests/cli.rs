@@ -68,6 +68,7 @@ version-headers:
   - path: "{}"
     template: "{}"
 commit-based-bumping: false
+enable-expensive-metrics: false
 "#, version_file, header_file, template);
     fs::write(config_path, yaml).unwrap();
 

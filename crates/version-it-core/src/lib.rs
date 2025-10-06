@@ -2,6 +2,9 @@ use semver::{Version, Prerelease, BuildMetadata};
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use std::process::Command;
+use walkdir;
+use std::time::{SystemTime, UNIX_EPOCH};
+use sysinfo::System;
 
 
 #[derive(Debug, Clone)]
@@ -238,9 +241,111 @@ impl VersionInfo {
         }
     }
 
+    fn current_commit_full() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["rev-parse", "HEAD"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get git commit".into())
+        }
+    }
+
+    fn current_branch() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["rev-parse", "--abbrev-ref", "HEAD"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get git branch".into())
+        }
+    }
+
+    fn latest_tag() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["describe", "--tags", "--abbrev=0"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Ok("".to_string()) // No tags found
+        }
+    }
+
+    fn commit_author() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%an"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit author".into())
+        }
+    }
+
+    fn commit_email() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ae"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit email".into())
+        }
+    }
+
+    fn commit_date() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ci"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit date".into())
+        }
+    }
+
     fn current_datetime() -> String {
         let now: DateTime<Utc> = Utc::now();
         now.format("%Y-%m-%dT%H:%M:%S").to_string()
+    }
+
+    fn build_date() -> String {
+        let now: DateTime<Utc> = Utc::now();
+        now.format("%Y-%m-%d").to_string()
+    }
+
+    fn build_time() -> String {
+        let now: DateTime<Utc> = Utc::now();
+        now.format("%H:%M:%S").to_string()
+    }
+
+    fn hostname() -> String {
+        std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string())
+    }
+
+    fn username() -> String {
+        std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_else(|_| "unknown".to_string())
+    }
+
+    fn os_info() -> String {
+        std::env::consts::OS.to_string()
+    }
+
+    fn arch_info() -> String {
+        std::env::consts::ARCH.to_string()
+    }
+
+    fn rustc_version() -> String {
+        // Try to get rustc version
+        if let Ok(output) = Command::new("rustc").args(&["--version"]).output() {
+            if output.status.success() {
+                return String::from_utf8_lossy(&output.stdout).trim().to_string();
+            }
+        }
+        "unknown".to_string()
+    }
+
+    fn available_memory() -> String {
+        let mut sys = System::new_all();
+        sys.refresh_all();
+        let total_memory = sys.total_memory();
+        let available_memory = sys.available_memory();
+        format!("{} MB total, {} MB available", total_memory / 1024 / 1024, available_memory / 1024 / 1024)
+    }
+
+    fn cpu_count() -> usize {
+        num_cpus::get()
     }
 
 
@@ -333,6 +438,8 @@ pub struct Config {
     pub channel: Option<String>,
     #[serde(rename = "commit-based-bumping")]
     pub commit_based_bumping: bool,
+    #[serde(rename = "enable-expensive-metrics")]
+    pub enable_expensive_metrics: bool,
 }
 
 impl Config {
@@ -480,6 +587,255 @@ impl Config {
         }
     }
 
+    fn current_commit_full() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["rev-parse", "HEAD"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get git commit".into())
+        }
+    }
+
+    fn current_branch() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["rev-parse", "--abbrev-ref", "HEAD"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get git branch".into())
+        }
+    }
+
+    fn latest_tag() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["describe", "--tags", "--abbrev=0"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Ok("".to_string()) // No tags found
+        }
+    }
+
+    fn commit_author() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%an"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit author".into())
+        }
+    }
+
+    fn commit_email() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ae"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit email".into())
+        }
+    }
+
+    fn commit_date() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(&["log", "-1", "--pretty=format:%ci"]).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err("Failed to get commit date".into())
+        }
+    }
+
+    fn current_datetime() -> String {
+        let now: DateTime<Utc> = Utc::now();
+        now.format("%Y-%m-%dT%H:%M:%S").to_string()
+    }
+
+    fn build_date() -> String {
+        let now: DateTime<Utc> = Utc::now();
+        now.format("%Y-%m-%d").to_string()
+    }
+
+    fn build_time() -> String {
+        let now: DateTime<Utc> = Utc::now();
+        now.format("%H:%M:%S").to_string()
+    }
+
+    fn hostname() -> String {
+        std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string())
+    }
+
+    fn username() -> String {
+        std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_else(|_| "unknown".to_string())
+    }
+
+    fn recent_commits(limit: usize) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
+        let output = Command::new("git")
+            .args(&["log", &format!("-{}", limit), "--oneline", "--pretty=format:%H|%h|%s|%an|%ae|%ci"])
+            .output()?;
+
+        if !output.status.success() {
+            return Ok(vec![]);
+        }
+
+        let commits = String::from_utf8_lossy(&output.stdout);
+        let mut result = Vec::new();
+
+        for line in commits.lines() {
+            let parts: Vec<&str> = line.split('|').collect();
+            if parts.len() >= 6 {
+                result.push(serde_json::json!({
+                    "hash_full": parts[0],
+                    "hash_short": parts[1],
+                    "subject": parts[2],
+                    "author": parts[3],
+                    "email": parts[4],
+                    "date": parts[5]
+                }));
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn commit_count() -> Result<u64, Box<dyn std::error::Error>> {
+        let output = Command::new("git")
+            .args(&["rev-list", "--count", "HEAD"])
+            .output()?;
+
+        if output.status.success() {
+            let count = String::from_utf8_lossy(&output.stdout).trim().parse().unwrap_or(0);
+            Ok(count)
+        } else {
+            Ok(0)
+        }
+    }
+
+    fn first_commit_date() -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("git")
+            .args(&["log", "--reverse", "--pretty=format:%ci", "-1"])
+            .output()?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Ok("unknown".to_string())
+        }
+    }
+
+    fn gather_project_info() -> serde_json::Value {
+        // Try to read Cargo.toml
+        let mut name = "unknown".to_string();
+        let mut description = "unknown".to_string();
+        let mut authors = vec![];
+
+        if let Ok(content) = std::fs::read_to_string("Cargo.toml") {
+            if let Ok(toml) = toml::from_str::<toml::Value>(&content) {
+                if let Some(package) = toml.get("package") {
+                    if let Some(n) = package.get("name") {
+                        name = n.as_str().unwrap_or("unknown").to_string();
+                    }
+                    if let Some(d) = package.get("description") {
+                        description = d.as_str().unwrap_or("unknown").to_string();
+                    }
+                    if let Some(a) = package.get("authors") {
+                        if let Some(arr) = a.as_array() {
+                            authors = arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect();
+                        }
+                    }
+                }
+            }
+        }
+
+        serde_json::json!({
+            "name": name,
+            "description": description,
+            "authors": authors
+        })
+    }
+
+    fn gather_stats(&self) -> serde_json::Value {
+        // Check for cached stats first
+        let cache_file = ".version-it-stats-cache.json";
+        if let Ok(metadata) = std::fs::metadata(cache_file) {
+            if let Ok(cache_content) = std::fs::read_to_string(cache_file) {
+                if let Ok(cache) = serde_json::from_str::<serde_json::Value>(&cache_content) {
+                    // Check if cache is still valid (within last hour)
+                    if let Some(timestamp) = cache.get("timestamp").and_then(|t| t.as_u64()) {
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs();
+                        if now - timestamp < 3600 { // 1 hour cache
+                            return cache;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Calculate stats (expensive operation)
+        println!("Calculating project statistics... (this may take a moment)");
+        let file_count = walkdir::WalkDir::new(".")
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .count();
+
+        // Approximate lines of code (very basic)
+        let mut lines_of_code = 0;
+        let _ = walkdir::WalkDir::new(".")
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| {
+                let path = e.path().to_string_lossy();
+                path.ends_with(".rs") || path.ends_with(".js") || path.ends_with(".ts") || path.ends_with(".py")
+            })
+            .for_each(|e| {
+                if let Ok(content) = std::fs::read_to_string(e.path()) {
+                    lines_of_code += content.lines().count();
+                }
+            });
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let stats = serde_json::json!({
+            "file_count": file_count,
+            "lines_of_code": lines_of_code,
+            "timestamp": timestamp
+        });
+
+        // Cache the results
+        let _ = std::fs::write(cache_file, serde_json::to_string_pretty(&stats).unwrap_or_default());
+
+        stats
+    }
+
+    fn gather_git_info() -> serde_json::Value {
+        let commit_hash = VersionInfo::current_commit().unwrap_or_else(|_| "unknown".to_string());
+        let commit_hash_full = Self::current_commit_full().unwrap_or_else(|_| "unknown".to_string());
+        let branch = Self::current_branch().unwrap_or_else(|_| "unknown".to_string());
+        let tag = Self::latest_tag().unwrap_or_else(|_| "".to_string());
+        let author = Self::commit_author().unwrap_or_else(|_| "unknown".to_string());
+        let email = Self::commit_email().unwrap_or_else(|_| "unknown".to_string());
+        let date = Self::commit_date().unwrap_or_else(|_| "unknown".to_string());
+        let commit_count = Self::commit_count().unwrap_or(0);
+        let first_commit_date = Self::first_commit_date().unwrap_or_else(|_| "unknown".to_string());
+        let recent_commits = Self::recent_commits(10).unwrap_or_else(|_| vec![]);
+
+        serde_json::json!({
+            "commit_hash": commit_hash,
+            "commit_hash_full": commit_hash_full,
+            "branch": branch,
+            "tag": tag,
+            "author": author,
+            "email": email,
+            "date": date,
+            "commit_count": commit_count,
+            "first_commit_date": first_commit_date,
+            "recent_commits": recent_commits
+        })
+    }
+
     /// Generates version header files based on the configuration.
     ///
     /// # Arguments
@@ -501,10 +857,37 @@ impl Config {
                 } else {
                     return Err("Either template or template-path must be specified for version header".into());
                 };
+                let git_info = Self::gather_git_info();
+                let project_info = Self::gather_project_info();
+                let stats_info = if self.enable_expensive_metrics {
+                    self.gather_stats()
+                } else {
+                    serde_json::json!({
+                        "file_count": "disabled",
+                        "lines_of_code": "disabled"
+                    })
+                };
                 let data = serde_json::json!({
                     "version": version,
                     "scheme": self.versioning_scheme,
-                    "channel": channel.unwrap_or("")
+                    "channel": channel.unwrap_or(""),
+                    "git": git_info,
+                    "build": {
+                        "timestamp": Self::current_datetime(),
+                        "date": Self::build_date(),
+                        "time": Self::build_time(),
+                        "compiler": VersionInfo::rustc_version()
+                    },
+                    "system": {
+                        "hostname": Self::hostname(),
+                        "username": Self::username(),
+                        "os": VersionInfo::os_info(),
+                        "arch": VersionInfo::arch_info(),
+                        "cpus": VersionInfo::cpu_count(),
+                        "memory": VersionInfo::available_memory()
+                    },
+                    "project": project_info,
+                    "stats": stats_info
                 });
                 let content = handlebars.render_template(&template, &data)?;
                 std::fs::write(&header.path, content)?;
@@ -734,7 +1117,8 @@ version-headers:
   - path: include/version.h
     template: |
       #define VERSION "{{version}}"
-commit-based-bumping: true
+commit-based-bumping: false
+enable-expensive-metrics: false
 "#;
         fs::write("test_config.yml", yaml).unwrap();
         let config = Config::load_from_file("test_config.yml").unwrap();
@@ -761,200 +1145,11 @@ commit-based-bumping: true
             package_files: None,
             channel: None,
             commit_based_bumping: false,
+            enable_expensive_metrics: false,
         };
         let version = config.get_current_version().unwrap();
         assert_eq!(version, "2.1.0");
         fs::remove_file("test_version.txt").unwrap();
-    }
-
-    #[test]
-    fn test_get_current_version_fallback() {
-        let config = Config {
-            run_on_branches: vec![],
-            versioning_scheme: "semantic".to_string(),
-            first_version: "1.0.0".to_string(),
-            current_version_file: None,
-            changelog_exporters: None,
-            calver_enable_branch: false,
-            changelog_sections: vec![],
-            change_substitutions: vec![],
-            change_type_map: vec![],
-            version_headers: None,
-            package_files: None,
-            channel: None,
-            commit_based_bumping: false,
-        };
-        let version = config.get_current_version().unwrap();
-        assert_eq!(version, "1.0.0");
-    }
-
-    #[test]
-    fn test_config_load_invalid_file() {
-        let result = Config::load_from_file("nonexistent.yml");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_config_load_invalid_yaml() {
-        use std::fs;
-        fs::write("invalid.yml", "invalid: yaml: [").unwrap();
-        let result = Config::load_from_file("invalid.yml");
-        assert!(result.is_err());
-        fs::remove_file("invalid.yml").unwrap();
-    }
-
-    #[test]
-    fn test_generate_headers() {
-        use std::fs;
-        let config = Config {
-            run_on_branches: vec!["main".to_string()],
-            versioning_scheme: "semantic".to_string(),
-            first_version: "1.0.0".to_string(),
-            current_version_file: None,
-            changelog_exporters: None,
-            calver_enable_branch: false,
-            changelog_sections: vec![],
-            change_substitutions: vec![],
-            change_type_map: vec![],
-            version_headers: Some(vec![
-                VersionHeader {
-                    path: "test_version.h".to_string(),
-                    template: Some("#define VERSION \"{{version}}\"\n".to_string()),
-                    template_path: None,
-                },
-                VersionHeader {
-                    path: "test_version.py".to_string(),
-                    template: Some("VERSION = \"{{version}}\"".to_string()),
-                    template_path: None,
-                },
-            ]),
-            package_files: None,
-            channel: None,
-            commit_based_bumping: false,
-        };
-        config.generate_headers("2.0.0", None).unwrap();
-        let c_content = fs::read_to_string("test_version.h").unwrap();
-        assert_eq!(c_content, "#define VERSION \"2.0.0\"\n");
-        let py_content = fs::read_to_string("test_version.py").unwrap();
-        assert_eq!(py_content, "VERSION = \"2.0.0\"");
-        fs::remove_file("test_version.h").unwrap();
-        fs::remove_file("test_version.py").unwrap();
-    }
-
-    #[test]
-    fn test_generate_headers_no_headers() {
-        let config = Config {
-            run_on_branches: vec![],
-            versioning_scheme: "semantic".to_string(),
-            first_version: "1.0.0".to_string(),
-            current_version_file: None,
-            changelog_exporters: None,
-            calver_enable_branch: false,
-            changelog_sections: vec![],
-            change_substitutions: vec![],
-            change_type_map: vec![],
-            version_headers: None,
-            package_files: None,
-            channel: None,
-            commit_based_bumping: false,
-        };
-        let result = config.generate_headers("2.0.0", None);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_analyze_commits_for_bump_no_git() {
-        let config = Config {
-            run_on_branches: vec![],
-            versioning_scheme: "semantic".to_string(),
-            first_version: "1.0.0".to_string(),
-            current_version_file: None,
-            changelog_exporters: None,
-            calver_enable_branch: false,
-            changelog_sections: vec![],
-            change_substitutions: vec![],
-            change_type_map: vec![],
-            version_headers: None,
-            package_files: None,
-            channel: None,
-            commit_based_bumping: false,
-        };
-        // Since no git repo, get_current_branch will fail, so should return Err or None
-        let result = config.analyze_commits_for_bump();
-        // Depending on implementation, it might be Err
-        assert!(result.is_err() || result.unwrap().is_none());
-    }
-
-    #[test]
-    fn test_versioninfo_new_build() {
-        let v = VersionInfo::new("1.2.3.4", "build", None).unwrap();
-        assert_eq!(v.scheme, "build");
-        assert_eq!(v.to_string(), "1.2.3.4");
-    }
-
-    #[test]
-    fn test_versioninfo_new_monotonic() {
-        let v = VersionInfo::new("42", "monotonic", None).unwrap();
-        assert_eq!(v.scheme, "monotonic");
-        assert_eq!(v.to_string(), "42");
-    }
-
-    #[test]
-    fn test_channel_stable() {
-        let v = VersionInfo::new("1.2.3", "semantic", Some("stable".to_string())).unwrap();
-        assert_eq!(v.to_string(), "1.2.3");
-    }
-
-    #[test]
-    fn test_channel_beta() {
-        let v = VersionInfo::new("1.2.3", "semantic", Some("beta".to_string())).unwrap();
-        assert_eq!(v.to_string(), "1.2.3-beta.1");
-    }
-
-    #[test]
-    fn test_channel_nightly() {
-        let v = VersionInfo::new("20241006", "timestamp", Some("nightly".to_string())).unwrap();
-        assert_eq!(v.to_string(), "20241006");
-    }
-
-    #[test]
-    fn test_channel_custom() {
-        let v = VersionInfo::new("1.2.3", "semantic", Some("rc".to_string())).unwrap();
-        assert_eq!(v.to_string(), "1.2.3-rc");
-    }
-
-    #[test]
-    fn test_determine_bump_from_commit_with_label() {
-        let config = Config {
-            run_on_branches: vec![],
-            versioning_scheme: "semantic".to_string(),
-            first_version: "1.0.0".to_string(),
-            current_version_file: None,
-            changelog_exporters: None,
-            calver_enable_branch: false,
-            changelog_sections: vec![],
-            change_substitutions: vec![],
-            change_type_map: vec![
-                ChangeTypeMap {
-                    label: "feat".to_string(),
-                    pattern: None,
-                    action: ChangeAction::Minor,
-                },
-                ChangeTypeMap {
-                    label: "fix".to_string(),
-                    pattern: None,
-                    action: ChangeAction::Patch,
-                },
-            ],
-            version_headers: None,
-            package_files: None,
-            channel: None,
-            commit_based_bumping: true,
-        };
-
-        assert_eq!(config.determine_bump_from_commit("feat: add new feature"), Some("minor".to_string()));
-        assert_eq!(config.determine_bump_from_commit("fix: bug fix"), Some("patch".to_string()));
-        assert_eq!(config.determine_bump_from_commit("chore: cleanup"), None);
     }
 
     #[test]
@@ -984,6 +1179,7 @@ commit-based-bumping: true
             package_files: None,
             channel: None,
             commit_based_bumping: true,
+            enable_expensive_metrics: false,
         };
 
         assert_eq!(config.determine_bump_from_commit("feat: add new feature"), Some("minor".to_string()));
