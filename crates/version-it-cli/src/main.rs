@@ -34,6 +34,9 @@ enum Commands {
         /// Commit version file changes after bumping
         #[arg(long)]
         commit: bool,
+        /// Show what would happen without making changes
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Get the next version without bumping
     Next {
@@ -55,6 +58,9 @@ enum Commands {
         /// Commit version file changes after bumping
         #[arg(long)]
         commit: bool,
+        /// Show what would happen without making changes
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -149,42 +155,67 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Bump { version, bump, scheme, create_tag, commit } => {
+        Commands::Bump { version, bump, scheme, create_tag, commit, dry_run } => {
             let mut v = get_version_info_with_scheme(version, &config, scheme);
             apply_bump(&mut v, &bump);
 
             let new_version = v.to_string();
             println!("{}", new_version);
 
-            if let Some(ref cfg) = config {
-                if let Some(ref file) = cfg.current_version_file {
-                    if let Err(e) = std::fs::write(file, &new_version) {
-                        eprintln!("Error writing version to file: {}", e);
+            if dry_run {
+                println!("DRY RUN: Would perform the following operations:");
+                if let Some(ref cfg) = config {
+                    if let Some(ref file) = cfg.current_version_file {
+                        println!("  - Write version '{}' to file '{}'", new_version, file);
+                    }
+                    if let Some(ref headers) = cfg.version_headers {
+                        for header in headers {
+                            println!("  - Generate header file '{}'", header.path);
+                        }
+                    }
+                    if let Some(ref package_files) = cfg.package_files {
+                        for package_file in package_files {
+                            println!("  - Update version in '{}' ({})", package_file.path, package_file.manager);
+                        }
+                    }
+                }
+                if commit {
+                    println!("  - Commit changes with message 'Bump version to {}'", new_version);
+                }
+                if create_tag {
+                    println!("  - Create git tag '{}'", new_version);
+                }
+            } else {
+                if let Some(ref cfg) = config {
+                    if let Some(ref file) = cfg.current_version_file {
+                        if let Err(e) = std::fs::write(file, &new_version) {
+                            eprintln!("Error writing version to file: {}", e);
+                            process::exit(1);
+                        }
+                    }
+                    if let Err(e) = cfg.generate_headers(&new_version) {
+                        eprintln!("Error generating headers: {}", e);
+                        process::exit(1);
+                    }
+                    if let Err(e) = cfg.update_package_files(&new_version) {
+                        eprintln!("Error updating package files: {}", e);
                         process::exit(1);
                     }
                 }
-                if let Err(e) = cfg.generate_headers(&new_version) {
-                    eprintln!("Error generating headers: {}", e);
-                    process::exit(1);
-                }
-                if let Err(e) = cfg.update_package_files(&new_version) {
-                    eprintln!("Error updating package files: {}", e);
-                    process::exit(1);
-                }
-            }
 
-            // Git operations
-            if commit {
-                if let Err(e) = git_commit_changes(&new_version) {
-                    eprintln!("Error committing changes: {}", e);
-                    process::exit(1);
+                // Git operations
+                if commit {
+                    if let Err(e) = git_commit_changes(&new_version) {
+                        eprintln!("Error committing changes: {}", e);
+                        process::exit(1);
+                    }
                 }
-            }
 
-            if create_tag {
-                if let Err(e) = git_create_tag(&new_version) {
-                    eprintln!("Error creating tag: {}", e);
-                    process::exit(1);
+                if create_tag {
+                    if let Err(e) = git_create_tag(&new_version) {
+                        eprintln!("Error creating tag: {}", e);
+                        process::exit(1);
+                    }
                 }
             }
         }
@@ -194,7 +225,7 @@ fn main() {
 
             println!("{}", v.to_string());
         }
-        Commands::AutoBump { create_tag, commit } => {
+        Commands::AutoBump { create_tag, commit, dry_run } => {
             if let Some(ref cfg) = config {
                 match cfg.analyze_commits_for_bump() {
                     Ok(Some(bump_type)) => {
@@ -220,33 +251,56 @@ fn main() {
                         let new_version = v.to_string();
                         println!("{}", new_version);
 
-                        if let Some(ref file) = cfg.current_version_file {
-                            if let Err(e) = std::fs::write(file, &new_version) {
-                                eprintln!("Error writing version to file: {}", e);
+                        if dry_run {
+                            println!("DRY RUN: Would perform the following operations:");
+                            if let Some(ref file) = cfg.current_version_file {
+                                println!("  - Write version '{}' to file '{}'", new_version, file);
+                            }
+                            if let Some(ref headers) = cfg.version_headers {
+                                for header in headers {
+                                    println!("  - Generate header file '{}'", header.path);
+                                }
+                            }
+                            if let Some(ref package_files) = cfg.package_files {
+                                for package_file in package_files {
+                                    println!("  - Update version in '{}' ({})", package_file.path, package_file.manager);
+                                }
+                            }
+                            if commit {
+                                println!("  - Commit changes with message 'Bump version to {}'", new_version);
+                            }
+                            if create_tag {
+                                println!("  - Create git tag '{}'", new_version);
+                            }
+                        } else {
+                            if let Some(ref file) = cfg.current_version_file {
+                                if let Err(e) = std::fs::write(file, &new_version) {
+                                    eprintln!("Error writing version to file: {}", e);
+                                    process::exit(1);
+                                }
+                            }
+                            if let Err(e) = cfg.generate_headers(&new_version) {
+                                eprintln!("Error generating headers: {}", e);
                                 process::exit(1);
                             }
-                        }
-                        if let Err(e) = cfg.generate_headers(&new_version) {
-                            eprintln!("Error generating headers: {}", e);
-                            process::exit(1);
-                        }
-                        if let Err(e) = cfg.update_package_files(&new_version) {
-                            eprintln!("Error updating package files: {}", e);
-                            process::exit(1);
-                        }
-
-                        // Git operations
-                        if commit {
-                            if let Err(e) = git_commit_changes(&new_version) {
-                                eprintln!("Error committing changes: {}", e);
+                            if let Err(e) = cfg.update_package_files(&new_version) {
+                                eprintln!("Error updating package files: {}", e);
                                 process::exit(1);
                             }
-                        }
 
-                        if create_tag {
-                            if let Err(e) = git_create_tag(&new_version) {
-                                eprintln!("Error creating tag: {}", e);
-                                process::exit(1);
+                            // Git operations
+                            if commit {
+                                if let Err(e) = git_commit_changes(&new_version) {
+                                    eprintln!("Error committing changes: {}", e);
+                                    process::exit(1);
+                                }
+                            }
+
+                            if create_tag {
+                                if let Err(e) = git_create_tag(&new_version) {
+                                    eprintln!("Error creating tag: {}", e);
+                                    process::exit(1);
+                                }
                             }
                         }
                     }

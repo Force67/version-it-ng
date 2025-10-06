@@ -62,6 +62,13 @@ version-it bump --version 1.0.0 --bump minor --commit --create-tag
 
 version-it auto-bump --commit --create-tag
 # Auto-bump with automatic commit and tag creation
+
+# Dry-run mode (preview changes without applying them)
+version-it bump --version 1.0.0 --bump minor --dry-run
+# Shows what would happen without making actual changes
+
+version-it auto-bump --dry-run --commit --create-tag
+# Shows auto-bump operations that would be performed
 ```
 
 ## Configuration
