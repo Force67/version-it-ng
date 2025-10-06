@@ -73,15 +73,13 @@ change-type-map:
   action: patch
 
 version-headers:
-- language: c
-  path: include/version.h
+- path: include/version.h
   template: |
     #ifndef VERSION_H
     #define VERSION_H
     #define VERSION "{{version}}"
     #endif
-- language: python
-  path: src/version.py
+- path: src/version.py
   template: |
     """Version information for the project."""
     VERSION = "{{version}}"

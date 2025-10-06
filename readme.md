@@ -70,8 +70,7 @@ versioning-scheme: calver
 first-version: 25.10.01
 current-version-file: version.txt  # Optional: read/write current version from/to this file
 version-headers:
-- language: c
-  path: include/version.h
+- path: include/version.h
   template: |
     #ifndef VERSION_H
     #define VERSION_H
@@ -81,11 +80,11 @@ version-headers:
 
 ## Templates
 
-Templates use Handlebars syntax. Available variables:
+Templates use Handlebars syntax and are completely language-independent. Available variables:
 - `{{version}}`: The current version string
 - `{{scheme}}`: The versioning scheme (semantic, calver, etc.)
 
-Default templates are provided for supported languages, but you can customize with the `template` field.
+You can specify templates inline with the `template` field or reference external template files with `template-path`.
 
 See `examples/templates/` for sample templates.
 

@@ -253,10 +253,11 @@ pub struct ChangeTypeMap {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionHeader {
-    pub language: String,
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub template: Option<String>,
+    #[serde(rename = "template-path", skip_serializing_if = "Option::is_none")]
+    pub template_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -426,15 +427,13 @@ impl Config {
         if let Some(headers) = &self.version_headers {
             let handlebars = handlebars::Handlebars::new();
             for header in headers {
-                let template = header.template.clone().unwrap_or_else(|| {
-                    match header.language.as_str() {
-                        "c" | "cpp" => "#define VERSION \"{{version}}\"\n".to_string(),
-                        "python" => "VERSION = \"{{version}}\"\n".to_string(),
-                        "rust" => "pub const VERSION: &str = \"{{version}}\";\n".to_string(),
-                        "go" => "const Version = \"{{version}}\"\n".to_string(),
-                        _ => "# VERSION = {{version}}\n".to_string(), // generic
-                    }
-                });
+                let template = if let Some(ref template_path) = header.template_path {
+                    std::fs::read_to_string(template_path)?
+                } else if let Some(ref template) = header.template {
+                    template.clone()
+                } else {
+                    return Err("Either template or template-path must be specified for version header".into());
+                };
                 let data = serde_json::json!({
                     "version": version,
                     "scheme": self.versioning_scheme
@@ -580,8 +579,9 @@ change-type-map:
   - label: "feat"
     action: minor
 version-headers:
-  - language: c
-    path: include/version.h
+  - path: include/version.h
+    template: |
+      #define VERSION "{{version}}"
 "#;
         fs::write("test_config.yml", yaml).unwrap();
         let config = Config::load_from_file("test_config.yml").unwrap();
@@ -659,14 +659,14 @@ version-headers:
             change_type_map: vec![],
             version_headers: Some(vec![
                 VersionHeader {
-                    language: "c".to_string(),
                     path: "test_version.h".to_string(),
-                    template: None,
+                    template: Some("#define VERSION \"{{version}}\"\n".to_string()),
+                    template_path: None,
                 },
                 VersionHeader {
-                    language: "python".to_string(),
                     path: "test_version.py".to_string(),
                     template: Some("VERSION = \"{{version}}\"".to_string()),
+                    template_path: None,
                 },
             ]),
         };

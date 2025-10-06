@@ -54,6 +54,7 @@ fn test_subfolder_config() {
     fs::write(version_file, "1.1.0").unwrap();
 
     // Write config
+    let template = format!("#define VERSION {{{{version}}}}");
     let yaml = format!(r#"
 run-on-branches: ["main"]
 versioning-scheme: semantic
@@ -64,9 +65,9 @@ changelog-sections: []
 change-substitutions: []
 change-type-map: []
 version-headers:
-  - language: c
-    path: "{}"
-"#, version_file, header_file);
+  - path: "{}"
+    template: "{}"
+"#, version_file, header_file, template);
     fs::write(config_path, yaml).unwrap();
 
     // Run command
@@ -85,7 +86,7 @@ version-headers:
 
     // Check header generated
     let header = fs::read_to_string(header_file).unwrap();
-    assert!(header.contains("#define VERSION \"1.1.1\""));
+    assert!(header.contains("#define VERSION 1.1.1"));
 
     // Clean up
     fs::remove_file(config_path).unwrap();
