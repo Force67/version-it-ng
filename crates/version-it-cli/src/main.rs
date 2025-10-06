@@ -3,17 +3,14 @@ use version_it_core::{VersionInfo, Config};
 use std::process;
 use std::path::Path;
 use std::process::{Command, exit};
-use serde_json;
 
 fn output_success(structured: bool, data: serde_json::Value) {
     if structured {
         println!("{}", serde_json::to_string(&data).unwrap());
-    } else {
-        if let Some(version) = data.get("version") {
-            println!("{}", version.as_str().unwrap());
-        } else if let Some(message) = data.get("message") {
-            println!("{}", message.as_str().unwrap());
-        }
+    } else if let Some(version) = data.get("version") {
+        println!("{}", version.as_str().unwrap());
+    } else if let Some(message) = data.get("message") {
+        println!("{}", message.as_str().unwrap());
     }
 }
 
@@ -116,9 +113,18 @@ fn get_version_info_with_scheme(version: Option<String>, config: &Option<Config>
 
 fn apply_bump(v: &mut VersionInfo, bump: &str) -> Result<(), String> {
     match bump {
-        "major" => Ok(v.bump_major()),
-        "minor" => Ok(v.bump_minor()),
-        "patch" => Ok(v.bump_patch()),
+        "major" => {
+            v.bump_major();
+            Ok(())
+        }
+        "minor" => {
+            v.bump_minor();
+            Ok(())
+        }
+        "patch" => {
+            v.bump_patch();
+            Ok(())
+        }
         _ => Err(format!("Invalid bump type: {}. Use major, minor, or patch.", bump)),
     }
 }
@@ -126,7 +132,7 @@ fn apply_bump(v: &mut VersionInfo, bump: &str) -> Result<(), String> {
 fn git_commit_changes(version: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Add all changes to git
     let status = Command::new("git")
-        .args(&["add", "."])
+        .args(["add", "."])
         .status()?;
 
     if !status.success() {
@@ -135,7 +141,7 @@ fn git_commit_changes(version: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if there are any changes to commit
     let status_output = Command::new("git")
-        .args(&["status", "--porcelain"])
+        .args(["status", "--porcelain"])
         .output()?;
 
     if status_output.stdout.is_empty() {
@@ -146,7 +152,7 @@ fn git_commit_changes(version: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Commit the changes
     let commit_message = format!("Bump version to {}", version);
     let status = Command::new("git")
-        .args(&["commit", "-m", &commit_message])
+        .args(["commit", "-m", &commit_message])
         .status()?;
 
     if !status.success() {
@@ -161,7 +167,7 @@ fn git_create_tag(version: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Create an annotated tag
     let tag_message = format!("Version {}", version);
     let status = Command::new("git")
-        .args(&["tag", "-a", version, "-m", &tag_message])
+        .args(["tag", "-a", version, "-m", &tag_message])
         .status()?;
 
     if !status.success() {
