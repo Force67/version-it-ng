@@ -12,6 +12,7 @@ A configurable versioning tool for CI pipelines supporting multiple versioning s
 - **monotonic**: Simple incrementing number (42)
 - **datetime**: ISO 8601 datetime (2024-10-06T14:30:00)
 - **pattern**: Custom string patterns (v1.0.0-snapshot)
+- **semantic-commit**: Semantic versioning with commit count (1.23.456)
 
 ## Release Channels
 
@@ -28,6 +29,10 @@ Support for release channels with different versioning behaviors:
 # Semantic versioning
 version-it bump --version 1.0.0 --bump patch
 # Output: 1.0.1
+
+# Semantic-commit versioning
+version-it bump --version 1.23.456 --bump minor
+# Output: 1.24.<current_commit_count>
 
 # Calendar versioning
 version-it bump --version 25.10.01 --bump minor
@@ -60,6 +65,9 @@ version-it bump --version v1.0.0-snapshot --bump minor
 # Override scheme via CLI
 version-it bump --version 1.2.3 --scheme build --bump patch
 # Output: 1.2.4.0
+
+version-it bump --version 1.23.456 --scheme semantic-commit --bump major
+# Output: 2.0.<current_commit_count>
 
 # Channel-based versioning
 version-it bump --version 1.2.3 --channel beta --bump patch

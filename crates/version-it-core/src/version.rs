@@ -13,6 +13,7 @@ pub enum VersionType {
     Monotonic(u64),
     Datetime(String),
     Pattern(String),
+    SemanticCommit { major: u32, minor: u32, commit_count: u32 },
 }
 
 #[derive(Debug, Clone)]
@@ -85,6 +86,21 @@ impl VersionInfo {
             "pattern" => {
                 VersionType::Pattern(version.to_string())
             }
+            "semantic-commit" => {
+                if version.is_empty() {
+                    let commit_count = Self::current_commit_count().unwrap_or(0);
+                    VersionType::SemanticCommit { major: 0, minor: 0, commit_count }
+                } else {
+                    let parts: Vec<&str> = version.split('.').collect();
+                    if parts.len() != 3 {
+                        return Err("Semantic-commit version must be in format major.minor.commit_count".into());
+                    }
+                    let major = parts[0].parse()?;
+                    let minor = parts[1].parse()?;
+                    let commit_count = parts[2].parse()?;
+                    VersionType::SemanticCommit { major, minor, commit_count }
+                }
+            }
             _ => VersionType::Semantic(Version::parse(version)?),
         };
         Ok(Self {
@@ -119,6 +135,11 @@ impl VersionInfo {
             VersionType::Monotonic(n) => *n += 1,
             VersionType::Datetime(s) => *s = Self::current_datetime(),
             VersionType::Pattern(s) => *s = format!("{}-updated", s),
+            VersionType::SemanticCommit { major, minor, commit_count } => {
+                *major += 1;
+                *minor = 0;
+                *commit_count = Self::current_commit_count().unwrap_or(*commit_count);
+            }
         }
     }
 
@@ -144,6 +165,10 @@ impl VersionInfo {
             VersionType::Monotonic(n) => *n += 1,
             VersionType::Datetime(s) => *s = Self::current_datetime(),
             VersionType::Pattern(s) => *s = format!("{}-updated", s),
+            VersionType::SemanticCommit { minor, commit_count, .. } => {
+                *minor += 1;
+                *commit_count = Self::current_commit_count().unwrap_or(*commit_count);
+            }
         }
     }
 
@@ -167,6 +192,9 @@ impl VersionInfo {
             VersionType::Monotonic(n) => *n += 1,
             VersionType::Datetime(s) => *s = Self::current_datetime(),
             VersionType::Pattern(s) => *s = format!("{}-updated", s),
+            VersionType::SemanticCommit { commit_count, .. } => {
+                *commit_count = Self::current_commit_count().unwrap_or(*commit_count);
+            }
         }
     }
 
@@ -199,6 +227,16 @@ impl VersionInfo {
     fn current_datetime() -> String {
         let now: DateTime<Utc> = Utc::now();
         now.format("%Y-%m-%dT%H:%M:%S").to_string()
+    }
+
+    fn current_commit_count() -> Result<u32, Box<dyn std::error::Error>> {
+        let output = Command::new("git").args(["rev-list", "--count", "HEAD"]).output()?;
+        if output.status.success() {
+            let count: u32 = String::from_utf8_lossy(&output.stdout).trim().parse().unwrap_or(0);
+            Ok(count)
+        } else {
+            Err("Failed to get commit count".into())
+        }
     }
 
     pub fn rustc_version() -> String {
@@ -409,6 +447,40 @@ mod tests {
         v.bump_major();
         assert_eq!(v.to_string(), "v1.0.0-updated");
     }
+
+    #[test]
+    fn test_semantic_commit_new() {
+        let v = VersionInfo::new("1.23.456", "semantic-commit", None).unwrap();
+        assert_eq!(v.scheme, "semantic-commit");
+        assert_eq!(v.to_string(), "1.23.456");
+    }
+
+    #[test]
+    fn test_semantic_commit_bump_major() {
+        let mut v = VersionInfo::new("1.23.456", "semantic-commit", None).unwrap();
+        // Since we can't mock git, it will use current or fallback
+        v.bump_major();
+        // Assuming current commit count is 456 or more, but hard to test without mock
+        // Just check that major increased and minor reset
+        if let VersionType::SemanticCommit { major, minor, .. } = v.version {
+            assert_eq!(major, 2);
+            assert_eq!(minor, 0);
+        } else {
+            panic!("Wrong type");
+        }
+    }
+
+    #[test]
+    fn test_semantic_commit_bump_minor() {
+        let mut v = VersionInfo::new("1.23.456", "semantic-commit", None).unwrap();
+        v.bump_minor();
+        if let VersionType::SemanticCommit { major, minor, .. } = v.version {
+            assert_eq!(major, 1);
+            assert_eq!(minor, 24);
+        } else {
+            panic!("Wrong type");
+        }
+    }
 }
 
 impl fmt::Display for VersionInfo {
@@ -422,6 +494,7 @@ impl fmt::Display for VersionInfo {
             VersionType::Monotonic(n) => n.to_string(),
             VersionType::Datetime(s) => s.clone(),
             VersionType::Pattern(s) => s.clone(),
+            VersionType::SemanticCommit { major, minor, commit_count } => format!("{}.{}.{}", major, minor, commit_count),
         };
 
         let version_str = if let Some(ref channel) = self.channel {
