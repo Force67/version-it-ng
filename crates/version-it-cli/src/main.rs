@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use version_it_core::Config;
 use std::path::Path;
 use output::output_error;
-use commands::{handle_bump_command, handle_next_command, handle_auto_bump_command};
+use commands::{handle_bump_command, handle_next_command, handle_auto_bump_command, BumpOptions, AutoBumpOptions, CommandContext};
 
 #[derive(Parser)]
 #[command(name = "version-it")]
@@ -93,15 +93,43 @@ fn main() {
 
     let structured_output = cli.structured_output || config.as_ref().map(|c| c.structured_output).unwrap_or(false);
 
+    let context = CommandContext {
+        config,
+        structured_output,
+    };
+
     match cli.command {
         Commands::Bump { version, bump, scheme, channel, create_tag, commit, dry_run } => {
-            handle_bump_command(version, bump, scheme, channel, create_tag, commit, dry_run, &config, structured_output);
+            let options = BumpOptions {
+                version,
+                bump,
+                scheme,
+                channel,
+                create_tag,
+                commit,
+                dry_run,
+            };
+            handle_bump_command(options, &context);
         }
         Commands::Next { version, bump, scheme, channel } => {
-            handle_next_command(version, bump, scheme, channel, &config, structured_output);
+            let options = BumpOptions {
+                version,
+                bump,
+                scheme,
+                channel,
+                create_tag: false,
+                commit: false,
+                dry_run: false,
+            };
+            handle_next_command(options, &context);
         }
         Commands::AutoBump { create_tag, commit, dry_run } => {
-            handle_auto_bump_command(create_tag, commit, dry_run, &config, structured_output);
+            let options = AutoBumpOptions {
+                create_tag,
+                commit,
+                dry_run,
+            };
+            handle_auto_bump_command(options, &context);
         }
     }
 }
