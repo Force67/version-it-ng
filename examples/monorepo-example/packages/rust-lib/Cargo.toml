@@ -1,0 +1,7 @@
+[package]
+name = "monorepo-rust-lib"
+version = "0.1.10"
+edition = "2021"
+description = "Example Rust library component in monorepo"
+
+[dependencies]

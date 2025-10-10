@@ -1,0 +1,22 @@
+# Lib component configuration
+# Uses calendar versioning for the C library
+
+versioning-scheme: calver
+first-version: 25.10.01
+current-version-file: version.txt
+
+# Generate C header file
+version-headers:
+  - path: version.h
+    template: |
+      #ifndef LIB_VERSION_H
+      #define LIB_VERSION_H
+
+      #define LIB_VERSION "{{version}}"
+      #define LIB_SCHEME "{{scheme}}"
+      #define LIB_CHANNEL "{{channel}}"
+      #define LIB_GIT_COMMIT "{{git.commit_hash}}"
+      #define LIB_GIT_BRANCH "{{git.branch}}"
+      #define LIB_BUILD_DATE "{{build.date}}"
+
+      #endif /* LIB_VERSION_H */

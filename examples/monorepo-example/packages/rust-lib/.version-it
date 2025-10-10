@@ -1,0 +1,11 @@
+# Rust component configuration
+# Uses semantic versioning for the Rust library
+
+versioning-scheme: semantic
+first-version: 0.1.0
+current-version-file: version.txt
+
+# Update Cargo.toml version field
+package-files:
+  - path: Cargo.toml
+    manager: cargo

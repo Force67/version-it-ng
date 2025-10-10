@@ -1,0 +1,11 @@
+{
+  "name": "monorepo-service",
+  "version": "202510052213456",
+  "description": "Example service component in monorepo",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "version-it",
+  "license": "MIT"
+}

@@ -1,0 +1,28 @@
+# Root monorepo configuration
+# Global product versioning alongside individual component versions
+
+versioning-scheme: semantic
+first-version: 1.0.0
+current-version-file: VERSION
+
+# Global version file for the entire product
+version-headers:
+  - path: VERSION.txt
+    template: |
+      # Global Product Version
+      # This represents the overall monorepo version
+      {{version}}
+
+# Global templates that could be shared across projects
+templates:
+  - name: "monorepo-release"
+    prefix: "v"
+    separator: "-"
+    blocks:
+      - name: "version"
+        type: "semantic"
+      - name: "date"
+        type: "calver"
+        format: "YYYYMMDD"
+      - name: "commit"
+        type: "commit"

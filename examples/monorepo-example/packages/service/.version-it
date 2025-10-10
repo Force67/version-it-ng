@@ -1,0 +1,11 @@
+# Service component configuration
+# Uses timestamp versioning for the Node.js service
+
+versioning-scheme: timestamp
+first-version: 20251005220904
+current-version-file: version.txt
+
+# Update package.json version field
+package-files:
+  - path: package.json
+    manager: npm
