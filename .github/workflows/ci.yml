@@ -27,3 +27,43 @@ jobs:
 
     - name: Run CLI example
       run: cargo run --bin version-it -- bump --version 1.0.0 --bump patch
+
+  # Auto-versioning job that runs only on main branch pushes (not PRs)
+  auto-version:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Allow creating commits and tags
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for commit counting
+        token: ${{ secrets.VERSION_BOT_PAT }}  # Bot's own PAT
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Build version-it
+      run: cargo build --release --bin version-it
+
+    - name: Configure Git for bot account
+      run: |
+        git config --global user.name "${{ secrets.VERSION_BOT_USERNAME }}"
+        git config --global user.email "${{ secrets.VERSION_BOT_EMAIL }}"
+
+    - name: Check for version bump needed
+      id: check_bump
+      run: |
+        # Get the current version from git tags or config
+        CURRENT_VERSION=$(./target/release/version-it auto-bump --dry-run 2>/dev/null || echo "0.0.0")
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Apply version bump and commit
+      if: steps.check_bump.outputs.current_version != ''
+      run: |
+        echo "Applying version bump..."
+        ./target/release/version-it auto-bump --commit --create-tag
+        NEW_VERSION=$(git describe --tags --abbrev=0)
+        echo "Version bumped to: $NEW_VERSION"
+        echo "Commit created by version-bot account"

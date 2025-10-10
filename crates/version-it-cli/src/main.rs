@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use version_it_core::Config;
 use std::path::Path;
 use output::output_error;
-use commands::{handle_bump_command, handle_next_command, handle_auto_bump_command, BumpOptions, AutoBumpOptions, CommandContext};
+use commands::{handle_bump_command, handle_next_command, handle_auto_bump_command, handle_craft_command, BumpOptions, AutoBumpOptions, CraftOptions, CommandContext};
 
 #[derive(Parser)]
 #[command(name = "version-it")]
@@ -75,9 +75,37 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Craft custom versions using configurable templates
+    Craft {
+        /// Template name to use (optional, uses default template if not provided)
+        #[arg(short, long)]
+        template: Option<String>,
+        /// Path to template configuration file (default: version-templates.yaml)
+        #[arg(long)]
+        config_file: Option<String>,
+        /// List all available templates
+        #[arg(long)]
+        list_templates: bool,
+        /// Increment a counter by name
+        #[arg(long)]
+        increment_counter: Option<String>,
+        /// Set a counter to a specific value (format: counter_name:value)
+        #[arg(long, value_parser = parse_counter_set)]
+        set_counter: Option<(String, u32)>,
+        /// Show what would happen without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
-
+fn parse_counter_set(s: &str) -> Result<(String, u32), String> {
+    let parts: Vec<&str> = s.split(':').collect();
+    if parts.len() != 2 {
+        return Err("Expected format: counter_name:value".to_string());
+    }
+    let value = parts[1].parse().map_err(|_| "Invalid number".to_string())?;
+    Ok((parts[0].to_string(), value))
+}
 
 fn main() {
     let cli = Cli::parse();
@@ -130,6 +158,17 @@ fn main() {
                 dry_run,
             };
             handle_auto_bump_command(options, &context);
+        }
+        Commands::Craft { template, config_file, list_templates, increment_counter, set_counter, dry_run } => {
+            let options = CraftOptions {
+                template,
+                config_file,
+                list_templates,
+                increment_counter,
+                set_counter,
+                dry_run,
+            };
+            handle_craft_command(options, &context);
         }
     }
 }

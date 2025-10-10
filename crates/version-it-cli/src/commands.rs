@@ -1,4 +1,4 @@
-use version_it_core::{VersionInfo, Config};
+use version_it_core::{VersionInfo, Config, VersionComposer, ComposerConfig, VersionContext};
 use super::output::{output_success, output_error};
 use super::git_ops::{git_commit_changes, git_create_tag};
 
@@ -17,6 +17,16 @@ pub struct BumpOptions {
 pub struct AutoBumpOptions {
     pub create_tag: bool,
     pub commit: bool,
+    pub dry_run: bool,
+}
+
+#[derive(Debug)]
+pub struct CraftOptions {
+    pub template: Option<String>,
+    pub config_file: Option<String>,
+    pub list_templates: bool,
+    pub increment_counter: Option<String>,
+    pub set_counter: Option<(String, u32)>,
     pub dry_run: bool,
 }
 
@@ -258,4 +268,105 @@ pub fn handle_auto_bump_command(options: AutoBumpOptions, context: &CommandConte
             } else {
                 output_error(context.structured_output, "No config found for auto-bump");
             }
+}
+
+pub fn handle_craft_command(options: CraftOptions, context: &CommandContext) {
+    // Load version composer configuration
+    let config_file = options.config_file.as_deref().unwrap_or("version-templates.yaml");
+
+    let composer_config = match ComposerConfig::from_file(config_file) {
+        Ok(config) => config,
+        Err(e) => {
+            output_error(context.structured_output, &format!("Error loading template config '{}': {}", config_file, e));
+            return;
+        }
+    };
+
+    let mut composer = VersionComposer::from_config(&composer_config);
+
+    // Handle listing templates
+    if options.list_templates {
+        let templates = composer.list_templates();
+        if context.structured_output {
+            let data = serde_json::json!({
+                "success": true,
+                "templates": templates,
+                "default_template": composer.default_template
+            });
+            output_success(context.structured_output, data);
+        } else {
+            println!("Available templates:");
+            for template_name in templates {
+                let default_marker = if composer.default_template.as_ref().map_or(false, |d| d == template_name) {
+                    " (default)"
+                } else {
+                    ""
+                };
+                println!("  {}{}", template_name, default_marker);
+            }
+        }
+        return;
+    }
+
+    // Handle counter operations
+    if let Some(counter_name) = options.increment_counter {
+        if options.dry_run {
+            println!("DRY RUN: Would increment counter '{}' from {} to {}",
+                     counter_name,
+                     composer.counters.get(&counter_name).copied().unwrap_or(0),
+                     composer.counters.get(&counter_name).copied().unwrap_or(0) + 1);
+        } else {
+            let new_value = composer.increment_counter(&counter_name);
+            if context.structured_output {
+                let data = serde_json::json!({
+                    "success": true,
+                    "counter": counter_name,
+                    "new_value": new_value
+                });
+                output_success(context.structured_output, data);
+            } else {
+                println!("Counter '{}' incremented to {}", counter_name, new_value);
+            }
+        }
+        return;
+    }
+
+    if let Some((counter_name, value)) = options.set_counter {
+        if options.dry_run {
+            println!("DRY RUN: Would set counter '{}' to {}", counter_name, value);
+        } else {
+            composer.set_counter(&counter_name, value);
+            if context.structured_output {
+                let data = serde_json::json!({
+                    "success": true,
+                    "counter": counter_name,
+                    "value": value
+                });
+                output_success(context.structured_output, data);
+            } else {
+                println!("Counter '{}' set to {}", counter_name, value);
+            }
+        }
+        return;
+    }
+
+    // Generate version
+    match composer.generate_version(options.template.as_deref()) {
+        Ok(version) => {
+            if context.structured_output {
+                let data = serde_json::json!({
+                    "success": true,
+                    "version": version,
+                    "template": options.template.or(composer.default_template),
+                    "counters": composer.counters
+                });
+                output_success(context.structured_output, data);
+            } else {
+                println!("{}", version);
+            }
+        }
+        Err(e) => {
+            output_error(context.structured_output, &format!("Error generating version: {}", e));
+        }
+    }
 }

@@ -1,6 +1,24 @@
 # version-it
 
-A configurable versioning tool for CI pipelines supporting multiple versioning schemes.
+A powerful versioning tool for CI pipelines that supports multiple versioning schemes and **custom version crafting** with configurable building blocks.
+
+## ✨ New: Custom Version Crafting
+
+Create **arbitrary version strings** by combining different building blocks in any order you want! Mix semantic numbers, timestamps, git commits, counters, and more to craft perfect version schemes for your project.
+
+```bash
+# List available version templates
+version-it craft --list-templates
+
+# Generate version using custom template
+version-it craft --template enterprise-release
+
+# Increment build counters
+version-it craft --increment-counter build
+
+# Set counter values
+version-it craft --set-counter release:10
+```
 
 ## Versioning Schemes
 
@@ -13,6 +31,7 @@ A configurable versioning tool for CI pipelines supporting multiple versioning s
 - **datetime**: ISO 8601 datetime (2024-10-06T14:30:00)
 - **pattern**: Custom string patterns (v1.0.0-snapshot)
 - **semantic-commit**: Semantic versioning with commit count (1.23.456)
+- **🎯 custom**: Craft your own versions with building blocks!
 
 ## Release Channels
 
@@ -97,6 +116,152 @@ version-it bump --version 1.0.0 --bump minor --dry-run
 version-it auto-bump --dry-run --commit --create-tag
 # Shows auto-bump operations that would be performed
 ```
+
+## 🎯 Version Crafting
+
+### Available Building Blocks
+
+- **semantic**: Traditional semantic versioning (major.minor.patch)
+- **calver**: Calendar versioning with flexible formats (YY.MM.DD, YYYYMMDD, etc.)
+- **timestamp**: Various timestamp formats (unix, YYYYMMDDHHMMSS, iso, etc.)
+- **commit**: Git commit hash (short or full)
+- **counter**: Incremental counters for builds/releases
+- **text**: Static text values
+- **date**: Formatted dates with custom patterns
+- **branch**: Git branch name
+- **build_number**: Build number from context
+- **versioned**: Reference to another block's value
+
+### Configuration
+
+Create a `version-templates.yaml` file to define your custom version templates:
+
+```yaml
+default_template: "enterprise-release"
+
+counters:
+  build: 42
+  release: 5
+
+templates:
+  # Enterprise release: v3.0.0-2025.10.10-abc123-42
+  - name: "enterprise-release"
+    prefix: "v"
+    separator: "-"
+    blocks:
+      - name: "version"
+        type: "semantic"
+        config:
+          major: 3
+          minor: 0
+          patch: 0
+      - name: "date"
+        type: "calver"
+        format: "YYYY.MM.DD"
+      - name: "commit"
+        type: "commit"
+      - name: "build"
+        type: "counter"
+        config:
+          name: "build"
+
+  # Feature branch: 1.5.0-feature-branch-7
+  - name: "feature-branch"
+    separator: "-"
+    blocks:
+      - name: "base"
+        type: "semantic"
+        config:
+          major: 1
+          minor: 5
+          patch: 0
+      - name: "branch"
+        type: "branch"
+      - name: "build"
+        type: "counter"
+        config:
+          name: "build"
+
+  # Timestamped release: release-2.1.0-20251010-abc123
+  - name: "timestamped-release"
+    prefix: "release-"
+    separator: "-"
+    blocks:
+      - name: "version"
+        type: "semantic"
+        config:
+          major: 2
+          minor: 1
+          patch: 0
+      - name: "timestamp"
+        type: "timestamp"
+        format: "YYYYMMDD"
+      - name: "commit"
+        type: "commit"
+
+  # Simple semantic: v1.2.3
+  - name: "semantic"
+    prefix: "v"
+    blocks:
+      - name: "version"
+        type: "semantic"
+
+  # Calendar version: 25.10.10
+  - name: "calver"
+    blocks:
+      - name: "date"
+        type: "calver"
+        format: "YY.MM.DD"
+```
+
+### Craft Command Examples
+
+```bash
+# Generate version using default template
+version-it craft
+
+# Generate version using specific template
+version-it craft --template enterprise-release
+
+# Use custom configuration file
+version-it craft --config-file custom-templates.yaml
+
+# List all available templates
+version-it craft --list-templates
+
+# Increment counters
+version-it craft --increment-counter build
+version-it craft --increment-counter release
+
+# Set counter to specific value
+version-it craft --set-counter build:100
+version-it craft --set-counter release:5
+
+# Preview what would happen (dry run)
+version-it craft --template enterprise-release --dry-run
+
+# Generate structured JSON output
+version-it craft --template enterprise-release --structured-output
+```
+
+### Block Formats
+
+#### Calver Formats
+- `YY.MM.DD` → 25.10.10
+- `YYYY.MM.DD` → 2025.10.10
+- `YYMMDD` → 251010
+- `YYYYMMDD` → 20251010
+
+#### Timestamp Formats
+- `unix` → 1728524400
+- `unix_ms` → 1728524400123
+- `YYYYMMDDHHMMSS` → 20251010143000
+- `iso` → 2025-10-10T14:30:00Z
+
+#### Date Formats
+- `%Y-%m-%d` → 2025-10-10
+- `%d/%m/%Y` → 10/10/2025
+- Any chrono-compatible format
 
 ## Configuration
 
@@ -270,3 +435,145 @@ Example CI workflow:
     NEW_VERSION=$(version-it auto-bump)
     echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
 ```
+
+## 🚀 CLI Commands
+
+### version-it craft
+Generate custom versions using configurable templates.
+
+```bash
+# Generate version using default template
+version-it craft
+
+# Use specific template
+version-it craft --template enterprise-release
+
+# List available templates
+version-it craft --list-templates
+
+# Manage counters
+version-it craft --increment-counter build
+version-it craft --set-counter release:10
+
+# Use custom config file
+version-it craft --config-file my-templates.yaml
+
+# Preview operations
+version-it craft --template enterprise-release --dry-run
+```
+
+### version-it bump
+Bump version components (traditional commands still work).
+
+```bash
+version-it bump --version 1.0.0 --bump patch
+version-it bump --version 1.2.3 --scheme semantic --bump minor
+```
+
+### version-it auto-bump
+Automatically bump based on commit messages.
+
+```bash
+version-it auto-bump --commit --create-tag
+```
+
+### version-it next
+Preview next version without bumping.
+
+```bash
+version-it next --version 1.0.0 --bump minor
+```
+
+## 🔧 Advanced Examples
+
+### Complex Enterprise Versioning
+```yaml
+# Generates: release-myapp-4.2.1-20251010-main-7-GA
+- name: "enterprise"
+  prefix: "release-"
+  separator: "-"
+  suffix: "-GA"
+  blocks:
+    - name: "product"
+      type: "text"
+      config:
+        value: "myapp"
+    - name: "version"
+      type: "semantic"
+      config:
+        major: 4
+        minor: 2
+        patch: 1
+    - name: "date"
+      type: "calver"
+      format: "YYYYMMDD"
+    - name: "branch"
+      type: "branch"
+    - name: "build"
+      type: "counter"
+      config:
+        name: "release"
+```
+
+### Multi-Component Feature Release
+```yaml
+# Generates: v3.0.0-25.10-12-abc123
+- name: "feature-release"
+  prefix: "v"
+  separator: "-"
+  blocks:
+    - name: "semantic"
+      type: "semantic"
+      config:
+        major: 3
+        minor: 0
+        patch: 0
+    - name: "date"
+      type: "calver"
+      format: "YY.MM"
+    - name: "release"
+      type: "counter"
+      config:
+        name: "release"
+    - name: "commit"
+      type: "commit"
+```
+
+### Monorepo Versioning with References
+```yaml
+# Generates: 1.2.3.1.2.3.5
+- name: "monorepo-ref"
+  blocks:
+    - name: "base"
+      type: "semantic"
+      config:
+        major: 1
+        minor: 2
+        patch: 3
+    - name: "ref"
+      type: "versioned"
+      config:
+        name: "base"
+    - name: "build"
+      type: "counter"
+      config:
+        name: "build"
+```
+
+## 📁 Examples
+
+- `examples/version-templates.yaml` - Comprehensive template examples
+- `examples/simple-templates.yaml` - Simple starter templates
+- `examples/demo.rs` - Rust API usage demo
+
+## 🎯 Why Version Crafting?
+
+Traditional versioning schemes are rigid, but real projects often need custom formats:
+
+- **Enterprise releases** need product names, build numbers, and GA suffixes
+- **Feature branches** need branch names and iteration counts
+- **Monorepos** need to reference multiple version components
+- **Compliance** requires specific date formats and audit trails
+- **DevOps** workflows need build server integration
+
+With version crafting, you can create exactly the version format you need by combining building blocks in any order you want! 🚀

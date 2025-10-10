@@ -1,116 +1,12 @@
-# white list of branches, that the tool will run on
-run-on-branches:
-- main
-- master
-- devel
-
-# versioning schemes are: semantic, calver, commit, timestamp
-versioning-scheme: calver
-
-# initial version for the tool to start using.
-# I recommend stripping all former commit tags from the history, or providing the last version
-first-version: 25.10.01
-
-# a directory containg a list of jinja2 template files and an output directory for the generated files
-# if this is not provided, the tool will not generate changelogs
-changelog-exporters:
-  template-path: examples/templates
-  output-path: examples/outputs
-
-# whether to include the branch name in the version e.g. 1.0.0-branch-name
-calver-enable-branch: true
-
-# enable automatic version bumping based on commit messages
+versioning-scheme: semantic-commit
+first-version: 0.1.0
 commit-based-bumping: true
-
-# enable expensive metrics (file counting, line counting) - cached for 1 hour
-enable-expensive-metrics: true
-
-# heading titles for a given changelog label
-changelog-sections:
-- title: Added
-  labels:
-  - feature
-  - enhancement
-- title: Changed
-  labels:
-  - refactor
-  - improvement
-  - style
-  - tweak
-- title: Fixed
-  labels:
-  - bug
-  - fix
-
-# list of tokens that are stripped from both commit messages and changelogs
-# this is useful for removing tokens that are used for automation, or replacing internal
-# wording for customer facing changelogs
-change-substitutions:
-- token: codename-ariel
-  substitution: version.it
-
-# this tells the versioning engine what to do, when a given label is found
-# - null means that the label is known, but ignored
-# - minor means that the label will cause a minor version bump
-# - patch means that the label will cause a patch version bump
-# - major means that the label will cause a major version bump, i don't recommend this, as this
-#   should be reserved for breaking changes, and thus be done manually
 change-type-map:
-- label: wip
-  action: null
-- label: test
-  action: null
-- label: chore
-  action: null
-- label: refactor
-  action: minor
-- label: feat
-  action: minor
-- label: perf
-  action: minor
-- label: tweak
-  action: patch
-- label: fix
-  action: patch
-- label: docs
-  action: patch
-- label: style
-  action: patch
-# Example regex pattern for breaking changes
-- label: "BREAKING"
-  pattern: ".*BREAKING.*"
-  action: major
-
-version-headers:
-- path: include/version.h
-  template: |
-    #ifndef VERSION_H
-    #define VERSION_H
-    #define VERSION "{{version}}"
-    #define SCHEME "{{scheme}}"
-    #define CHANNEL "{{channel}}"
-    #define GIT_COMMIT "{{git.commit_hash}}"
-    #define GIT_BRANCH "{{git.branch}}"
-    #define BUILD_DATE "{{build.date}}"
-    #define PROJECT_NAME "{{project.name}}"
-    #define COMMIT_COUNT {{git.commit_count}}
-    #define SYSTEM_MEMORY "{{system.memory}}"
-    #endif
-- path: src/version.py
-  template: |
-    """Version information for the project."""
-    VERSION = "{{version}}"
-    SCHEME = "{{scheme}}"
-    CHANNEL = "{{channel}}"
-    GIT_COMMIT = "{{git.commit_hash}}"
-    GIT_BRANCH = "{{git.branch}}"
-    BUILD_DATE = "{{build.date}}"
-    PROJECT_NAME = "{{project.name}}"
-    COMMIT_COUNT = {{git.commit_count}}
-
-package-files:
-- path: package.json
-  manager: npm
-- path: Cargo.toml
-  manager: cargo
+  - label: "feat"
+    action: minor
+  - label: "fix"
+    action: patch
+  - label: "BREAKING"
+    action: major
+commit-message-template: "chore: bump version to {{version}} [skip ci]"
+run-on-branches: ["main"]

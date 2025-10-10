@@ -1,0 +1,49 @@
+# Simple version template examples for quick start
+
+default_template: "basic-semantic"
+
+counters:
+  build: 1
+
+templates:
+  # Basic semantic versioning
+  - name: "basic-semantic"
+    blocks:
+      - name: "version"
+        type: "semantic"
+    separator: "."
+
+  # Semantic with build number
+  - name: "semantic-build"
+    blocks:
+      - name: "version"
+        type: "semantic"
+      - name: "build"
+        type: "counter"
+        config:
+          name: "build"
+    separator: "-"
+
+  # Calendar versioning (short)
+  - name: "calver"
+    blocks:
+      - name: "date"
+        type: "calver"
+        format: "YY.MM.DD"
+    separator: "."
+
+  # Timestamp version
+  - name: "timestamp"
+    blocks:
+      - name: "ts"
+        type: "timestamp"
+    separator: ""
+
+  # Commit-based
+  - name: "commit"
+    blocks:
+      - name: "version"
+        type: "semantic"
+      - name: "commit"
+        type: "commit"
+    separator: "-"

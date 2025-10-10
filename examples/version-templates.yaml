@@ -1,0 +1,171 @@
+# Version Template Configuration Examples
+# This file shows how to craft arbitrary versions using different building blocks
+
+default_template: "semantic-release"
+
+counters:
+  build: 42
+  release: 5
+  hotfix: 1
+
+templates:
+  # Basic semantic versioning
+  - name: "semantic-release"
+    blocks:
+      - name: "version"
+        type: "semantic"
+        config:
+          major: 1
+          minor: 2
+          patch: 3
+    separator: "."
+    prefix: "v"
+
+  # Calendar versioning with build counter
+  - name: "calver-build"
+    blocks:
+      - name: "date"
+        type: "calver"
+        format: "YYYY.MM.DD"
+      - name: "build"
+        type: "counter"
+        config:
+          name: "build"
+    separator: "."
+
+  # Semantic version with timestamp
+  - name: "semantic-timestamp"
+    blocks:
+      - name: "version"
+        type: "semantic"
+        config:
+          major: 2
+          minor: 1
+          patch: 0
+      - name: "timestamp"
+        type: "timestamp"
+        format: "YYYYMMDDHHMMSS"
+    separator: "-"
+    prefix: "release-"
+
+  # Commit-based versioning
+  - name: "commit-release"
+    blocks:
+      - name: "version"
+        type: "semantic"
+        config:
+          major: 1
+          minor: 0
+          patch: 0
+      - name: "commit"
+        type: "commit"
+      - name: "branch"
+        type: "branch"
+    separator: "-"
+    prefix: "v"
+
+  # Multi-component version
+  - name: "enterprise-release"
+    blocks:
+      - name: "major"
+        type: "text"
+        config:
+          value: "v3"
+      - name: "date"
+        type: "calver"
+        format: "YY.MM"
+      - name: "release"
+        type: "counter"
+        config:
+          name: "release"
+      - name: "build"
+        type: "build_number"
+    separator: "."
+    suffix: "-stable"
+
+  # Feature branch versioning
+  - name: "feature-branch"
+    blocks:
+      - name: "base"
+        type: "semantic"
+        config:
+          major: 1
+          minor: 5
+          patch: 0
+      - name: "feature"
+        type: "branch"
+      - name: "build"
+        type: "counter"
+        config:
+          name: "build"
+    separator: "-"
+
+  # Custom date format version
+  - name: "date-custom"
+    blocks:
+      - name: "date"
+        type: "date"
+        format: "%Y-%m-%d"
+      - name: "time"
+        type: "timestamp"
+        format: "HHMM"
+      - name: "counter"
+        type: "counter"
+        config:
+          name: "build"
+    separator: "_"
+
+  # Nested version reference
+  - name: "versioned-ref"
+    blocks:
+      - name: "semantic"
+        type: "semantic"
+        config:
+          major: 2
+          minor: 0
+          patch: 0
+      - name: "ref"
+        type: "versioned"
+        config:
+          name: "semantic"
+      - name: "build"
+        type: "counter"
+        config:
+          name: "build"
+    separator: "-"
+
+  # Minimal timestamp version
+  - name: "minimal-timestamp"
+    blocks:
+      - name: "timestamp"
+        type: "timestamp"
+        format: "unix"
+    separator: ""
+
+  # Complex enterprise version
+  - name: "complex-enterprise"
+    blocks:
+      - name: "product"
+        type: "text"
+        config:
+          value: "myapp"
+      - name: "version"
+        type: "semantic"
+        config:
+          major: 4
+          minor: 2
+          patch: 1
+      - name: "date"
+        type: "calver"
+        format: "YYYYMMDD"
+      - name: "branch"
+        type: "branch"
+      - name: "commit"
+        type: "commit"
+      - name: "build"
+        type: "counter"
+        config:
+          name: "release"
+    separator: "-"
+    prefix: "release-"
+    suffix: "-GA"
