@@ -1,4 +1,6 @@
-use version_it_core::{VersionInfo, Config, VersionComposer, ComposerConfig};
+use version_it_version::VersionInfo;
+use version_it_config::Config;
+use version_it_composer::{VersionComposer, ComposerConfig};
 use version_it_templates::{DefaultTemplateManager, TemplateManager};
 use version_it_package::{DefaultPackageManager, PackageManager};
 use super::output::{output_success, output_error};

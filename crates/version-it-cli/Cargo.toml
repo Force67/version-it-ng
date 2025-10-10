@@ -12,7 +12,6 @@ name = "version-it"
 path = "src/main.rs"
 
 [dependencies]
-version-it-core = { path = "../version-it-core" }
 version-it-version = { path = "../version-it-version" }
 version-it-config = { path = "../version-it-config" }
 version-it-package = { path = "../version-it-package" }

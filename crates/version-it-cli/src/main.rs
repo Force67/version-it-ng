@@ -3,7 +3,7 @@ mod commands;
 mod git_ops;
 
 use clap::{Parser, Subcommand};
-use version_it_core::Config;
+use version_it_config::Config;
 use std::path::Path;
 use output::output_error;
 use commands::{handle_bump_command, handle_next_command, handle_auto_bump_command, handle_craft_command, handle_monorepo_command, BumpOptions, AutoBumpOptions, CraftOptions, MonorepoOptions, CommandContext};
