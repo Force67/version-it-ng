@@ -3,7 +3,6 @@ use version_it_templates::{DefaultTemplateManager, TemplateManager};
 use version_it_package::{DefaultPackageManager, PackageManager};
 use super::output::{output_success, output_error};
 use super::git_ops::{git_commit_changes, git_create_tag};
-use std::thread;
 use std::path::Path;
 
 #[derive(Debug)]
@@ -303,7 +302,6 @@ pub fn handle_craft_command(options: CraftOptions, context: &CommandContext) {
         Ok(config) => config,
         Err(e) => {
             output_error(context.structured_output, &format!("Error loading template config '{}': {}", config_file, e));
-            return;
         }
     };
 
@@ -487,7 +485,6 @@ pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContex
         Some(config) => config,
         None => {
             output_error(context.structured_output, "No root .version-it config found");
-            return;
         }
     };
 
@@ -496,13 +493,11 @@ pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContex
         Some(projects) => projects,
         None => {
             output_error(context.structured_output, "No subprojects defined in root .version-it config. Add a 'subprojects' section.");
-            return;
         }
     };
 
     if subprojects.is_empty() {
         output_error(context.structured_output, "No subprojects defined in root .version-it config");
-        return;
     }
 
     println!("🚀 Processing {} subprojects with bump: {} ({})",
@@ -518,7 +513,6 @@ pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContex
             Ok(dir) => dir,
             Err(e) => {
                 output_error(context.structured_output, &format!("Failed to get current directory: {}", e));
-                return;
             }
         };
 
@@ -597,7 +591,7 @@ pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContex
                 }
             };
 
-            let current_version = current_version_info.to_string();
+    let current_version = current_version_info.to_string();
             println!("  📋 Current version: {}", current_version);
 
             // Calculate next version
@@ -671,7 +665,6 @@ pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContex
             if let Ok(root_version) = root_config.get_current_version() {
                 if let Err(e) = git_commit_changes(&root_version) {
                     output_error(context.structured_output, &format!("Failed to commit changes: {}", e));
-                    return;
                 }
             }
         }
@@ -682,7 +675,6 @@ pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContex
                 println!("  🏷️  Creating tag: v{}", root_version);
                 if let Err(e) = git_create_tag(&format!("v{}", root_version)) {
                     output_error(context.structured_output, &format!("Failed to create tag: {}", e));
-                    return;
                 }
             }
         }

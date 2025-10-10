@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::path::Path;
 use version_it_config::PackageFile;
 
