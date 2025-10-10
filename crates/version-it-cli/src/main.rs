@@ -110,6 +110,9 @@ enum Commands {
         /// Show what would happen without making changes
         #[arg(long)]
         dry_run: bool,
+        /// Process subprojects in parallel
+        #[arg(long)]
+        parallel: bool,
     },
 }
 
@@ -185,12 +188,13 @@ fn main() {
             };
             handle_craft_command(options, &context);
         }
-        Commands::Monorepo { bump, create_tag, commit, dry_run } => {
+        Commands::Monorepo { bump, create_tag, commit, dry_run, parallel } => {
             let options = MonorepoOptions {
                 bump,
                 create_tag,
                 commit,
                 dry_run,
+                parallel,
             };
             handle_monorepo_command(options, &context);
         }

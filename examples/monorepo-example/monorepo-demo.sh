@@ -82,6 +82,7 @@ echo "📝 Usage:"
 echo "  version-it monorepo --bump patch        # Bump all components"
 echo "  version-it monorepo --bump minor --commit # Bump + commit"
 echo "  version-it monorepo --bump major --create-tag --commit  # Full release"
+echo "  version-it monorepo --bump patch --parallel  # Process in parallel"
 echo
 echo "  # Or from the built binary:"
 echo "  ../../target/debug/version-it monorepo --bump patch --dry-run"

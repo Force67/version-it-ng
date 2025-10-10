@@ -1,6 +1,12 @@
 use version_it_core::{VersionInfo, Config, VersionComposer, ComposerConfig, VersionContext};
 use super::output::{output_success, output_error};
 use super::git_ops::{git_commit_changes, git_create_tag};
+use std::thread;
+use std::path::Path;
+use std::sync::Mutex;
+lazy_static::lazy_static! {
+    static ref DIR_MUTEX: Mutex<()> = Mutex::new(());
+}
 
 #[derive(Debug)]
 pub struct BumpOptions {
@@ -36,6 +42,7 @@ pub struct MonorepoOptions {
     pub create_tag: bool,
     pub commit: bool,
     pub dry_run: bool,
+    pub parallel: bool,
 }
 
 #[derive(Debug)]
@@ -379,6 +386,96 @@ pub fn handle_craft_command(options: CraftOptions, context: &CommandContext) {
     }
 }
 
+fn process_subproject(subproject_path: String, subproject_config_path: Option<String>, bump_type: String, dry_run: bool, root_dir: std::path::PathBuf) -> (String, Result<String, String>) {
+    // Construct absolute path to subproject
+    let subproject_abs_path = root_dir.join(&subproject_path);
+
+    // Load subproject config
+    let sub_config = if let Some(config_path) = subproject_config_path {
+        // If config path is relative, make it absolute from the subproject directory
+        let config_abs_path = if Path::new(&config_path).is_relative() {
+            subproject_abs_path.join(&config_path)
+        } else {
+            Path::new(&config_path).to_path_buf()
+        };
+        match Config::load_from_file(config_abs_path.to_str().unwrap_or(&config_path)) {
+            Ok(config) => Some(config),
+            Err(e) => {
+                return (subproject_path, Err(format!("Config error: {}", e)));
+            }
+        }
+    } else {
+        // Try default .version-it in subproject directory
+        let config_abs_path = subproject_abs_path.join(".version-it");
+        match Config::load_from_file(config_abs_path.to_str().unwrap()) {
+            Ok(config) => Some(config),
+            Err(e) => {
+                return (subproject_path, Err(format!("Config error: {}", e)));
+            }
+        }
+    };
+
+    // Use mutex to serialize directory operations
+    let _guard = DIR_MUTEX.lock().unwrap();
+
+    // Temporarily change to subproject directory for version operations
+    let original_dir = match std::env::current_dir() {
+        Ok(dir) => dir,
+        Err(e) => return (subproject_path.clone(), Err(format!("Failed to get current directory: {}", e))),
+    };
+
+    if let Err(e) = std::env::set_current_dir(&subproject_abs_path) {
+        return (subproject_path, Err(format!("Directory error: {} (tried {})", e, subproject_abs_path.display())));
+    }
+
+    // Get current version
+    let current_version_info = match get_version_info_with_scheme(None, &sub_config, None, None) {
+        Ok(version_info) => version_info,
+        Err(e) => {
+            let _ = std::env::set_current_dir(&original_dir);
+            return (subproject_path, Err(format!("Version error: {}", e)));
+        }
+    };
+
+    let current_version = current_version_info.to_string();
+
+    // Calculate next version
+    let mut next_version_info = current_version_info.clone();
+    if let Err(e) = apply_bump(&mut next_version_info, &bump_type) {
+        let _ = std::env::set_current_dir(&original_dir);
+        return (subproject_path, Err(format!("Bump error: {}", e)));
+    }
+
+    let next_version = next_version_info.to_string();
+
+    if !dry_run {
+        // Apply the bump
+        let bump_options = BumpOptions {
+            version: Some(current_version.clone()),
+            bump: bump_type,
+            scheme: None,
+            channel: None,
+            create_tag: false, // We'll handle tagging at the end if requested
+            commit: false,     // We'll handle committing at the end if requested
+            dry_run: false,
+        };
+
+        // We need to create a new context for the subproject
+        let sub_context = CommandContext {
+            config: sub_config,
+            structured_output: false, // Disable structured output for subprojects
+        };
+
+        handle_bump_command(bump_options, &sub_context);
+    }
+
+    // Return to original directory
+    let _ = std::env::set_current_dir(&original_dir);
+
+    // Mutex guard is dropped here automatically
+    (subproject_path, Ok(next_version))
+}
+
 pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContext) {
     if options.dry_run {
         println!("🔍 DRY RUN - No changes will be made");
@@ -407,99 +504,142 @@ pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContex
         return;
     }
 
-    println!("🚀 Processing {} subprojects with bump: {}", subprojects.len(), options.bump);
+    println!("🚀 Processing {} subprojects with bump: {} ({})",
+             subprojects.len(),
+             options.bump,
+             if options.parallel { "parallel" } else { "sequential" });
 
     let mut results = Vec::new();
 
-    for subproject in subprojects {
-        println!("\n📦 Processing: {}", subproject.path);
-
-        // Change to subproject directory
-        let original_dir = std::env::current_dir().unwrap();
-        if let Err(e) = std::env::set_current_dir(&subproject.path) {
-            println!("  ❌ Failed to change to directory {}: {}", subproject.path, e);
-            results.push((subproject.path.clone(), Err(format!("Directory error: {}", e))));
-            continue;
-        }
-
-        // Load subproject config
-        let sub_config = if let Some(config_path) = &subproject.config {
-            match Config::load_from_file(config_path) {
-                Ok(config) => Some(config),
-                Err(e) => {
-                    println!("  ❌ Failed to load config {}: {}", config_path, e);
-                    results.push((subproject.path.clone(), Err(format!("Config error: {}", e))));
-                    let _ = std::env::set_current_dir(original_dir);
-                    continue;
-                }
-            }
-        } else {
-            // Try default .version-it in subproject directory
-            match Config::load_from_file(".version-it") {
-                Ok(config) => Some(config),
-                Err(e) => {
-                    println!("  ❌ Failed to load config .version-it: {}", e);
-                    results.push((subproject.path.clone(), Err(format!("Config error: {}", e))));
-                    let _ = std::env::set_current_dir(original_dir);
-                    continue;
-                }
+    if options.parallel {
+        // Get the root directory before spawning threads
+        let root_dir = match std::env::current_dir() {
+            Ok(dir) => dir,
+            Err(e) => {
+                output_error(context.structured_output, &format!("Failed to get current directory: {}", e));
+                return;
             }
         };
 
-        // Get current version
-        let current_version_info = match get_version_info_with_scheme(None, &sub_config, None, None) {
-            Ok(version_info) => version_info,
-            Err(e) => {
-                println!("  ❌ Failed to get current version: {}", e);
-                results.push((subproject.path.clone(), Err(format!("Version error: {}", e))));
+        // Parallel processing using threads
+        let mut handles = Vec::new();
+
+        for subproject in subprojects {
+            let subproject_path = subproject.path.clone();
+            let subproject_config_path = subproject.config.clone();
+            let bump_type = options.bump.clone();
+            let dry_run = options.dry_run;
+            let root_dir_clone = root_dir.clone();
+
+            let handle = std::thread::spawn(move || {
+                process_subproject(subproject_path, subproject_config_path, bump_type, dry_run, root_dir_clone)
+            });
+
+            handles.push(handle);
+        }
+
+        // Collect results from all threads
+        for handle in handles {
+            match handle.join() {
+                Ok(result) => results.push(result),
+                Err(e) => {
+                    println!("  ❌ Thread panicked: {:?}", e);
+                    results.push(("unknown".to_string(), Err("Thread panic".to_string())));
+                }
+            }
+        }
+    } else {
+        // Sequential processing (original logic)
+        for subproject in subprojects {
+            println!("\n📦 Processing: {}", subproject.path);
+
+            // Change to subproject directory
+            let original_dir = std::env::current_dir().unwrap();
+            if let Err(e) = std::env::set_current_dir(&subproject.path) {
+                println!("  ❌ Failed to change to directory {}: {}", subproject.path, e);
+                results.push((subproject.path.clone(), Err(format!("Directory error: {}", e))));
+                continue;
+            }
+
+            // Load subproject config
+            let sub_config = if let Some(config_path) = &subproject.config {
+                match Config::load_from_file(config_path) {
+                    Ok(config) => Some(config),
+                    Err(e) => {
+                        println!("  ❌ Failed to load config {}: {}", config_path, e);
+                        results.push((subproject.path.clone(), Err(format!("Config error: {}", e))));
+                        let _ = std::env::set_current_dir(original_dir);
+                        continue;
+                    }
+                }
+            } else {
+                // Try default .version-it in subproject directory
+                match Config::load_from_file(".version-it") {
+                    Ok(config) => Some(config),
+                    Err(e) => {
+                        println!("  ❌ Failed to load config .version-it: {}", e);
+                        results.push((subproject.path.clone(), Err(format!("Config error: {}", e))));
+                        let _ = std::env::set_current_dir(original_dir);
+                        continue;
+                    }
+                }
+            };
+
+            // Get current version
+            let current_version_info = match get_version_info_with_scheme(None, &sub_config, None, None) {
+                Ok(version_info) => version_info,
+                Err(e) => {
+                    println!("  ❌ Failed to get current version: {}", e);
+                    results.push((subproject.path.clone(), Err(format!("Version error: {}", e))));
+                    let _ = std::env::set_current_dir(original_dir);
+                    continue;
+                }
+            };
+
+            let current_version = current_version_info.to_string();
+            println!("  📋 Current version: {}", current_version);
+
+            // Calculate next version
+            let mut next_version_info = current_version_info.clone();
+            if let Err(e) = apply_bump(&mut next_version_info, &options.bump) {
+                println!("  ❌ Failed to bump version: {}", e);
+                results.push((subproject.path.clone(), Err(format!("Bump error: {}", e))));
                 let _ = std::env::set_current_dir(original_dir);
                 continue;
             }
-        };
 
-        let current_version = current_version_info.to_string();
-        println!("  📋 Current version: {}", current_version);
+            let next_version = next_version_info.to_string();
+            println!("  🎯 Next version: {}", next_version);
 
-        // Calculate next version
-        let mut next_version_info = current_version_info.clone();
-        if let Err(e) = apply_bump(&mut next_version_info, &options.bump) {
-            println!("  ❌ Failed to bump version: {}", e);
-            results.push((subproject.path.clone(), Err(format!("Bump error: {}", e))));
+            if !options.dry_run {
+                // Apply the bump
+                let bump_options = BumpOptions {
+                    version: Some(current_version.clone()),
+                    bump: options.bump.clone(),
+                    scheme: None,
+                    channel: None,
+                    create_tag: false, // We'll handle tagging at the end if requested
+                    commit: false,     // We'll handle committing at the end if requested
+                    dry_run: false,
+                };
+
+                // We need to create a new context for the subproject
+                let sub_context = CommandContext {
+                    config: sub_config,
+                    structured_output: false, // Disable structured output for subprojects
+                };
+
+                handle_bump_command(bump_options, &sub_context);
+                println!("  ✅ Bumped to: {}", next_version);
+            } else {
+                println!("  🔍 Would bump to: {}", next_version);
+            }
+
+            results.push((subproject.path.clone(), Ok(next_version.clone())));
+
+            // Return to original directory
             let _ = std::env::set_current_dir(original_dir);
-            continue;
         }
-
-        let next_version = next_version_info.to_string();
-        println!("  🎯 Next version: {}", next_version);
-
-        if !options.dry_run {
-            // Apply the bump
-            let bump_options = BumpOptions {
-                version: Some(current_version.clone()),
-                bump: options.bump.clone(),
-                scheme: None,
-                channel: None,
-                create_tag: false, // We'll handle tagging at the end if requested
-                commit: false,     // We'll handle committing at the end if requested
-                dry_run: false,
-            };
-
-            // We need to create a new context for the subproject
-            let sub_context = CommandContext {
-                config: sub_config,
-                structured_output: false, // Disable structured output for subprojects
-            };
-
-            handle_bump_command(bump_options, &sub_context);
-            println!("  ✅ Bumped to: {}", next_version);
-        } else {
-            println!("  🔍 Would bump to: {}", next_version);
-        }
-
-        results.push((subproject.path.clone(), Ok(next_version.clone())));
-
-        // Return to original directory
-        let _ = std::env::set_current_dir(original_dir);
     }
 
     // Summary
