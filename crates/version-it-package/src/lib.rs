@@ -1,27 +1,25 @@
-use regex;
-use toml;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use version_it_config::PackageFile;
 
-impl super::Config {
-    /// Updates package files with the new version.
-    ///
-    /// # Arguments
-    ///
-    /// * `version` - The version string to set in package files.
-    ///
-    /// # Returns
-    ///
-    /// A Result indicating success or failure.
-    pub fn update_package_files(&self, version: &str) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(package_files) = &self.package_files {
-            for package_file in package_files {
-                self.update_single_package_file(package_file, version)?;
-            }
+pub trait PackageManager {
+    fn update_package_files(&self, package_files: &[PackageFile], version: &str, base_path: &Path) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+pub struct DefaultPackageManager;
+
+impl PackageManager for DefaultPackageManager {
+    fn update_package_files(&self, package_files: &[PackageFile], version: &str, base_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        for package_file in package_files {
+            self.update_single_package_file(package_file, version, base_path)?;
         }
         Ok(())
     }
+}
 
-    fn update_single_package_file(&self, package_file: &super::PackageFile, version: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let full_path = self.base_path.join(&package_file.path);
+impl DefaultPackageManager {
+    fn update_single_package_file(&self, package_file: &PackageFile, version: &str, base_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        let full_path = base_path.join(&package_file.path);
         if !full_path.exists() {
             // Skip files that don't exist
             return Ok(());
@@ -79,13 +77,12 @@ impl super::Config {
     fn update_python_file(&self, content: &str, version: &str, field: &str) -> Result<String, Box<dyn std::error::Error>> {
         let lines: Vec<&str> = content.lines().collect();
         let mut updated_lines = Vec::new();
-        let assignment_pattern = format!("{} = ", field);
 
         for line in lines {
-            if line.trim().starts_with(&assignment_pattern) {
-                // Simple string assignment replacement
-                if let Some(quote_start) = line.find('"').or_else(|| line.find('\'')) {
-                    if let Some(quote_end) = line[quote_start + 1..].find(line.chars().nth(quote_start).unwrap()).map(|i| i + quote_start + 1) {
+            if line.trim().starts_with(&format!("{} = ", field)) {
+                // Update the version assignment
+                if let Some(quote_start) = line.find('"') {
+                    if let Some(quote_end) = line[quote_start + 1..].find('"').map(|i| i + quote_start + 1) {
                         let before = &line[..quote_start + 1];
                         let after = &line[quote_end..];
                         updated_lines.push(format!("{}{}{}", before, version, after));
@@ -100,13 +97,20 @@ impl super::Config {
     }
 
     fn update_xml_file(&self, content: &str, version: &str, field: &str) -> Result<String, Box<dyn std::error::Error>> {
-        // Simple XML version update - this is a basic implementation
-        // For more complex XML structures, a proper XML parser would be better
-        let version_tag = format!("<{}>{}</{}>", field, version, field);
-        let pattern = format!("<{}>[^<]*</{}>", regex::escape(field), regex::escape(field));
+        // Simple XML update - this is a basic implementation
+        let start_tag = format!("<{}>", field);
+        let end_tag = format!("</{}>", field);
 
-        let re = regex::Regex::new(&pattern)?;
-        Ok(re.replace_all(content, version_tag).to_string())
+        if let Some(start_idx) = content.find(&start_tag) {
+            if let Some(end_idx) = content[start_idx..].find(&end_tag) {
+                let end_idx = start_idx + end_idx + end_tag.len();
+                let before = &content[..start_idx + start_tag.len()];
+                let after = &content[end_idx..];
+                return Ok(format!("{}{}{}", before, version, after));
+            }
+        }
+
+        Ok(content.to_string())
     }
 
     fn update_cmake_file(&self, content: &str, version: &str, field: &str) -> Result<String, Box<dyn std::error::Error>> {

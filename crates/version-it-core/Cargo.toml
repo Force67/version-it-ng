@@ -19,3 +19,11 @@ regex = "1.10"
 walkdir = "2.4"
 num_cpus = "1.16"
 sysinfo = "0.30"
+version-it-version = { path = "../version-it-version" }
+version-it-config = { path = "../version-it-config" }
+version-it-package = { path = "../version-it-package" }
+version-it-templates = { path = "../version-it-templates" }
+version-it-git = { path = "../version-it-git" }
+version-it-blocks = { path = "../version-it-blocks" }
+version-it-composer = { path = "../version-it-composer" }
+version-it-utils = { path = "../version-it-utils" }

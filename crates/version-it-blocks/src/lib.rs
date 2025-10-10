@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc, Datelike};
+use chrono::{Utc, Datelike};
 use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -241,6 +241,69 @@ impl VersionTemplate {
         };
 
         Ok(result)
+    }
+}
+
+// Builder functions for common version templates
+impl VersionTemplate {
+    pub fn semantic_version() -> Self {
+        Self::new("semantic")
+            .add_block(
+                VersionBlock::new("version", BlockType::Semantic { major: None, minor: None, patch: None })
+            )
+    }
+
+    pub fn calver_short() -> Self {
+        Self::new("calver-short")
+            .add_block(
+                VersionBlock::new("date", BlockType::Calver { year: None, month: None, day: None })
+                    .with_format("YY.MM.DD")
+            )
+    }
+
+    pub fn calver_long() -> Self {
+        Self::new("calver-long")
+            .add_block(
+                VersionBlock::new("date", BlockType::Calver { year: None, month: None, day: None })
+                    .with_format("YYYY.MM.DD")
+            )
+    }
+
+    pub fn timestamped() -> Self {
+        Self::new("timestamped")
+            .with_separator("-")
+            .add_block(
+                VersionBlock::new("version", BlockType::Semantic { major: None, minor: None, patch: None })
+            )
+            .add_block(
+                VersionBlock::new("timestamp", BlockType::Timestamp)
+            )
+    }
+
+    pub fn commit_based() -> Self {
+        Self::new("commit-based")
+            .with_separator("-")
+            .add_block(
+                VersionBlock::new("version", BlockType::Semantic { major: None, minor: None, patch: None })
+            )
+            .add_block(
+                VersionBlock::new("commit", BlockType::Commit)
+            )
+    }
+
+    pub fn build_numbered() -> Self {
+        Self::new("build-numbered")
+            .with_separator("-")
+            .add_block(
+                VersionBlock::new("version", BlockType::Semantic { major: None, minor: None, patch: None })
+            )
+            .add_block(
+                VersionBlock::new("build", BlockType::BuildNumber)
+            )
+    }
+
+    pub fn custom(name: &str) -> Self {
+        Self::new(name)
     }
 }
 

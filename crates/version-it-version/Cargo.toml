@@ -1,0 +1,15 @@
+[package]
+name = "version-it-version"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Version parsing and manipulation for version-it"
+
+[dependencies]
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+num_cpus = "1.16"
+sysinfo = "0.30"

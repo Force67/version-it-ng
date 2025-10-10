@@ -1,0 +1,20 @@
+[package]
+name = "version-it-templates"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Template generation for version-it"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+semver = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+handlebars = "4.0"
+hostname = "0.3"
+sysinfo = "0.30"
+num_cpus = "1.16"
+version-it-config = { path = "../version-it-config" }

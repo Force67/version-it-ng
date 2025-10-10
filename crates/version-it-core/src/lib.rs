@@ -1,14 +1,8 @@
-pub mod version;
-pub mod config;
-pub mod git;
-pub mod templates;
-pub mod package;
-pub mod utils;
-pub mod blocks;
-pub mod composer;
-
-// Re-export public items
-pub use version::{VersionInfo, VersionType};
-pub use config::{Config, ChangelogExporters, ChangelogSection, ChangeSubstitution, ChangeAction, ChangeTypeMap, VersionHeader, PackageFile};
-pub use blocks::{VersionBlock, BlockType, VersionContext, VersionTemplate};
-pub use composer::{VersionComposer, ComposerConfig};
+// Re-export public items from extracted crates
+pub use version_it_version::{VersionInfo, VersionType};
+pub use version_it_config::{Config, ChangelogExporters, ChangelogSection, ChangeSubstitution, ChangeAction, ChangeTypeMap, VersionHeader, PackageFile};
+pub use version_it_blocks::{VersionBlock, BlockType, VersionContext, VersionTemplate};
+pub use version_it_composer::{VersionComposer, ComposerConfig};
+pub use version_it_package::PackageManager;
+pub use version_it_templates::TemplateManager;
+pub use version_it_git::GitManager;

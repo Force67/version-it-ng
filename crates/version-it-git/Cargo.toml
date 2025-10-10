@@ -1,0 +1,11 @@
+[package]
+name = "version-it-git"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Git operations for version-it"
+
+[dependencies]
+semver = "1.0"

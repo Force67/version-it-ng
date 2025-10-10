@@ -1,4 +1,6 @@
-use version_it_core::{VersionInfo, Config, VersionComposer, ComposerConfig, VersionContext};
+use version_it_core::{VersionInfo, Config, VersionComposer, ComposerConfig};
+use version_it_templates::{DefaultTemplateManager, TemplateManager};
+use version_it_package::{DefaultPackageManager, PackageManager};
 use super::output::{output_success, output_error};
 use super::git_ops::{git_commit_changes, git_create_tag};
 use std::thread;
@@ -132,11 +134,17 @@ pub fn handle_bump_command(options: BumpOptions, context: &CommandContext) {
                     output_error(context.structured_output, &format!("Error writing version to file: {}", e));
                 }
             }
-            if let Err(e) = cfg.generate_headers(&new_version, v.channel.as_deref()) {
-                output_error(context.structured_output, &format!("Error generating headers: {}", e));
+            let template_manager = DefaultTemplateManager;
+            if let Some(headers) = &cfg.version_headers {
+                if let Err(e) = template_manager.generate_headers(headers, &new_version, v.channel.as_deref(), &cfg.base_path) {
+                    output_error(context.structured_output, &format!("Error generating headers: {}", e));
+                }
             }
-            if let Err(e) = cfg.update_package_files(&new_version) {
-                output_error(context.structured_output, &format!("Error updating package files: {}", e));
+            let package_manager = DefaultPackageManager;
+            if let Some(package_files) = &cfg.package_files {
+                if let Err(e) = package_manager.update_package_files(package_files, &new_version, &cfg.base_path) {
+                    output_error(context.structured_output, &format!("Error updating package files: {}", e));
+                }
             }
         }
 
@@ -240,11 +248,17 @@ pub fn handle_auto_bump_command(options: AutoBumpOptions, context: &CommandConte
                                     output_error(context.structured_output, &format!("Error writing version to file: {}", e));
                                 }
                             }
-                            if let Err(e) = cfg.generate_headers(&new_version, v.channel.as_deref()) {
-                                output_error(context.structured_output, &format!("Error generating headers: {}", e));
+                            let template_manager = DefaultTemplateManager;
+                            if let Some(headers) = &cfg.version_headers {
+                                if let Err(e) = template_manager.generate_headers(headers, &new_version, v.channel.as_deref(), &cfg.base_path) {
+                                    output_error(context.structured_output, &format!("Error generating headers: {}", e));
+                                }
                             }
-                            if let Err(e) = cfg.update_package_files(&new_version) {
-                                output_error(context.structured_output, &format!("Error updating package files: {}", e));
+                            let package_manager = DefaultPackageManager;
+                            if let Some(package_files) = &cfg.package_files {
+                                if let Err(e) = package_manager.update_package_files(package_files, &new_version, &cfg.base_path) {
+                                    output_error(context.structured_output, &format!("Error updating package files: {}", e));
+                                }
                             }
 
                             // Git operations
@@ -434,12 +448,18 @@ fn process_subproject(subproject_path: String, subproject_config_path: Option<St
 
     if !dry_run {
         // Apply the bump by updating package files and generating headers
-        if let Err(e) = sub_config.update_package_files(&next_version) {
-            return (subproject_path, Err(format!("Package update error: {}", e)));
+        let package_manager = DefaultPackageManager;
+        if let Some(package_files) = &sub_config.package_files {
+            if let Err(e) = package_manager.update_package_files(package_files, &next_version, &sub_config.base_path) {
+                return (subproject_path, Err(format!("Package update error: {}", e)));
+            }
         }
 
-        if let Err(e) = sub_config.generate_headers(&next_version, None) {
-            return (subproject_path, Err(format!("Header generation error: {}", e)));
+        let template_manager = DefaultTemplateManager;
+        if let Some(headers) = &sub_config.version_headers {
+            if let Err(e) = template_manager.generate_headers(headers, &next_version, None, &sub_config.base_path) {
+                return (subproject_path, Err(format!("Header generation error: {}", e)));
+            }
         }
 
         // Update the version file

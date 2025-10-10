@@ -1,0 +1,14 @@
+[package]
+name = "version-it-config"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Configuration management for version-it"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+regex = "1.10"
+semver = "1.0"
