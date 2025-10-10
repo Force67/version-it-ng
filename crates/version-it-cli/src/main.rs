@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use version_it_core::Config;
 use std::path::Path;
 use output::output_error;
-use commands::{handle_bump_command, handle_next_command, handle_auto_bump_command, handle_craft_command, BumpOptions, AutoBumpOptions, CraftOptions, CommandContext};
+use commands::{handle_bump_command, handle_next_command, handle_auto_bump_command, handle_craft_command, handle_monorepo_command, BumpOptions, AutoBumpOptions, CraftOptions, MonorepoOptions, CommandContext};
 
 #[derive(Parser)]
 #[command(name = "version-it")]
@@ -96,6 +96,21 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Process multiple subprojects in a monorepo
+    Monorepo {
+        /// Bump type: major, minor, patch
+        #[arg(short, long)]
+        bump: String,
+        /// Create a git tag after bumping
+        #[arg(long)]
+        create_tag: bool,
+        /// Commit version file changes after bumping
+        #[arg(long)]
+        commit: bool,
+        /// Show what would happen without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn parse_counter_set(s: &str) -> Result<(String, u32), String> {
@@ -169,6 +184,15 @@ fn main() {
                 dry_run,
             };
             handle_craft_command(options, &context);
+        }
+        Commands::Monorepo { bump, create_tag, commit, dry_run } => {
+            let options = MonorepoOptions {
+                bump,
+                create_tag,
+                commit,
+                dry_run,
+            };
+            handle_monorepo_command(options, &context);
         }
     }
 }

@@ -31,6 +31,14 @@ pub struct CraftOptions {
 }
 
 #[derive(Debug)]
+pub struct MonorepoOptions {
+    pub bump: String,
+    pub create_tag: bool,
+    pub commit: bool,
+    pub dry_run: bool,
+}
+
+#[derive(Debug)]
 pub struct CommandContext {
     pub config: Option<Config>,
     pub structured_output: bool,
@@ -368,5 +376,190 @@ pub fn handle_craft_command(options: CraftOptions, context: &CommandContext) {
         Err(e) => {
             output_error(context.structured_output, &format!("Error generating version: {}", e));
         }
+    }
+}
+
+pub fn handle_monorepo_command(options: MonorepoOptions, context: &CommandContext) {
+    if options.dry_run {
+        println!("🔍 DRY RUN - No changes will be made");
+    }
+
+    // Get the root config
+    let root_config = match &context.config {
+        Some(config) => config,
+        None => {
+            output_error(context.structured_output, "No root .version-it config found");
+            return;
+        }
+    };
+
+    // Check if subprojects are defined
+    let subprojects = match &root_config.subprojects {
+        Some(projects) => projects,
+        None => {
+            output_error(context.structured_output, "No subprojects defined in root .version-it config. Add a 'subprojects' section.");
+            return;
+        }
+    };
+
+    if subprojects.is_empty() {
+        output_error(context.structured_output, "No subprojects defined in root .version-it config");
+        return;
+    }
+
+    println!("🚀 Processing {} subprojects with bump: {}", subprojects.len(), options.bump);
+
+    let mut results = Vec::new();
+
+    for subproject in subprojects {
+        println!("\n📦 Processing: {}", subproject.path);
+
+        // Change to subproject directory
+        let original_dir = std::env::current_dir().unwrap();
+        if let Err(e) = std::env::set_current_dir(&subproject.path) {
+            println!("  ❌ Failed to change to directory {}: {}", subproject.path, e);
+            results.push((subproject.path.clone(), Err(format!("Directory error: {}", e))));
+            continue;
+        }
+
+        // Load subproject config
+        let sub_config = if let Some(config_path) = &subproject.config {
+            match Config::load_from_file(config_path) {
+                Ok(config) => Some(config),
+                Err(e) => {
+                    println!("  ❌ Failed to load config {}: {}", config_path, e);
+                    results.push((subproject.path.clone(), Err(format!("Config error: {}", e))));
+                    let _ = std::env::set_current_dir(original_dir);
+                    continue;
+                }
+            }
+        } else {
+            // Try default .version-it in subproject directory
+            match Config::load_from_file(".version-it") {
+                Ok(config) => Some(config),
+                Err(e) => {
+                    println!("  ❌ Failed to load config .version-it: {}", e);
+                    results.push((subproject.path.clone(), Err(format!("Config error: {}", e))));
+                    let _ = std::env::set_current_dir(original_dir);
+                    continue;
+                }
+            }
+        };
+
+        // Get current version
+        let current_version_info = match get_version_info_with_scheme(None, &sub_config, None, None) {
+            Ok(version_info) => version_info,
+            Err(e) => {
+                println!("  ❌ Failed to get current version: {}", e);
+                results.push((subproject.path.clone(), Err(format!("Version error: {}", e))));
+                let _ = std::env::set_current_dir(original_dir);
+                continue;
+            }
+        };
+
+        let current_version = current_version_info.to_string();
+        println!("  📋 Current version: {}", current_version);
+
+        // Calculate next version
+        let mut next_version_info = current_version_info.clone();
+        if let Err(e) = apply_bump(&mut next_version_info, &options.bump) {
+            println!("  ❌ Failed to bump version: {}", e);
+            results.push((subproject.path.clone(), Err(format!("Bump error: {}", e))));
+            let _ = std::env::set_current_dir(original_dir);
+            continue;
+        }
+
+        let next_version = next_version_info.to_string();
+        println!("  🎯 Next version: {}", next_version);
+
+        if !options.dry_run {
+            // Apply the bump
+            let bump_options = BumpOptions {
+                version: Some(current_version.clone()),
+                bump: options.bump.clone(),
+                scheme: None,
+                channel: None,
+                create_tag: false, // We'll handle tagging at the end if requested
+                commit: false,     // We'll handle committing at the end if requested
+                dry_run: false,
+            };
+
+            // We need to create a new context for the subproject
+            let sub_context = CommandContext {
+                config: sub_config,
+                structured_output: false, // Disable structured output for subprojects
+            };
+
+            handle_bump_command(bump_options, &sub_context);
+            println!("  ✅ Bumped to: {}", next_version);
+        } else {
+            println!("  🔍 Would bump to: {}", next_version);
+        }
+
+        results.push((subproject.path.clone(), Ok(next_version.clone())));
+
+        // Return to original directory
+        let _ = std::env::set_current_dir(original_dir);
+    }
+
+    // Summary
+    println!("\n📊 Monorepo bump summary:");
+    let mut success_count = 0;
+    let mut error_count = 0;
+
+    for (path, result) in &results {
+        match result {
+            Ok(version) => {
+                println!("  ✅ {}: {}", path, version);
+                success_count += 1;
+            }
+            Err(error) => {
+                println!("  ❌ {}: {}", path, error);
+                error_count += 1;
+            }
+        }
+    }
+
+    println!("\n📈 Results: {} successful, {} failed", success_count, error_count);
+
+    if !options.dry_run && (options.commit || options.create_tag) {
+        println!("\n🔄 Handling git operations...");
+
+        if options.commit {
+            println!("  📝 Committing all changes...");
+            if let Ok(root_version) = root_config.get_current_version() {
+                if let Err(e) = git_commit_changes(&root_version) {
+                    output_error(context.structured_output, &format!("Failed to commit changes: {}", e));
+                    return;
+                }
+            }
+        }
+
+        if options.create_tag {
+            // Use the root version for the tag
+            if let Ok(root_version) = root_config.get_current_version() {
+                println!("  🏷️  Creating tag: v{}", root_version);
+                if let Err(e) = git_create_tag(&format!("v{}", root_version)) {
+                    output_error(context.structured_output, &format!("Failed to create tag: {}", e));
+                    return;
+                }
+            }
+        }
+    }
+
+    if context.structured_output {
+        let data = serde_json::json!({
+            "success": error_count == 0,
+            "total_projects": results.len(),
+            "successful": success_count,
+            "failed": error_count,
+            "results": results.into_iter().map(|(path, result)| {
+                match result {
+                    Ok(version) => serde_json::json!({"path": path, "version": version, "success": true}),
+                    Err(error) => serde_json::json!({"path": path, "error": error, "success": false})
+                }
+            }).collect::<Vec<_>>()
+        });
+        output_success(context.structured_output, data);
     }
 }

@@ -57,6 +57,13 @@ pub struct PackageFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Subproject {
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     #[serde(rename = "run-on-branches")]
     pub run_on_branches: Vec<String>,
@@ -84,6 +91,8 @@ pub struct Config {
     #[serde(rename = "package-files")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_files: Option<Vec<PackageFile>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subprojects: Option<Vec<Subproject>>,
     #[serde(rename = "channel")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel: Option<String>,
@@ -291,6 +300,7 @@ enable-expensive-metrics: false
             change_type_map: vec![],
             version_headers: None,
             package_files: None,
+            subprojects: None,
             channel: None,
             commit_based_bumping: false,
             enable_expensive_metrics: false,
@@ -326,6 +336,7 @@ enable-expensive-metrics: false
             ],
             version_headers: None,
             package_files: None,
+            subprojects: None,
             channel: None,
             commit_based_bumping: true,
             enable_expensive_metrics: false,

@@ -48,9 +48,30 @@ impl super::Config {
 
     fn update_toml_file(&self, content: &str, version: &str, field: &str) -> Result<String, Box<dyn std::error::Error>> {
         let mut toml_value: toml::Value = toml::from_str(content)?;
-        if let Some(table) = toml_value.as_table_mut() {
-            table.insert(field.to_string(), toml::Value::String(version.to_string()));
+
+        // Handle dotted field paths like "package.version"
+        let field_parts: Vec<&str> = field.split('.').collect();
+        let mut current_value = &mut toml_value;
+
+        for (i, part) in field_parts.iter().enumerate() {
+            if i == field_parts.len() - 1 {
+                // Last part - set the value
+                if let Some(table) = current_value.as_table_mut() {
+                    table.insert(part.to_string(), toml::Value::String(version.to_string()));
+                }
+            } else {
+                // Navigate to the nested table
+                if let Some(table) = current_value.as_table_mut() {
+                    if !table.contains_key(*part) {
+                        table.insert(part.to_string(), toml::Value::Table(Default::default()));
+                    }
+                    current_value = table.get_mut(*part).unwrap();
+                } else {
+                    return Err(format!("Cannot navigate to field '{}': not a table", part).into());
+                }
+            }
         }
+
         Ok(toml::to_string(&toml_value)?)
     }
 
@@ -93,6 +114,7 @@ impl super::Config {
         let set_pattern = format!("set({}", field);
 
         for line in lines {
+            // Handle set(PROJECT_VERSION "x.y.z") pattern
             if line.trim().starts_with(&set_pattern) {
                 // CMake set() command replacement
                 if let Some(quote_start) = line.find('"') {
@@ -102,6 +124,16 @@ impl super::Config {
                         updated_lines.push(format!("{}{}{}", before, version, after));
                         continue;
                     }
+                }
+            }
+            // Handle project(name VERSION x.y.z ...) pattern
+            else if line.trim().starts_with("project(") && line.contains("VERSION") {
+                // CMake project() command with VERSION
+                let version_pattern = regex::Regex::new(r"VERSION\s+[\d.]+")?;
+                if version_pattern.is_match(line) {
+                    let updated_line = version_pattern.replace(line, &format!("VERSION {}", version));
+                    updated_lines.push(updated_line.to_string());
+                    continue;
                 }
             }
             updated_lines.push(line.to_string());

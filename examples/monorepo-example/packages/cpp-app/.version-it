@@ -1,9 +1,16 @@
 # C++ component configuration
 # Uses semantic versioning for the C++ application
 
+run-on-branches: ["main", "master", "develop"]
 versioning-scheme: semantic
 first-version: 1.0.0
 current-version-file: version.txt
+calver-enable-branch: false
+changelog-sections: []
+change-substitutions: []
+change-type-map: []
+commit-based-bumping: false
+enable-expensive-metrics: false
 
 # Update CMakeLists.txt version variable
 package-files:

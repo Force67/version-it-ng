@@ -382,6 +382,7 @@ The tool can automatically update version fields in package manager files:
 - **python**: Updates `__version__` in Python files
 - **maven**: Updates `<version>` tags in `pom.xml`
 - **cmake**: Updates `set(PROJECT_VERSION ...)` in CMakeLists.txt
+- **cmake**: Updates `set(PROJECT_VERSION ...)` in CMakeLists.txt
 
 Configure package files in your `.version-it` config:
 
@@ -511,6 +512,29 @@ Preview next version without bumping.
 
 ```bash
 version-it next --version 1.0.0 --bump minor
+```
+
+### version-it monorepo
+Process multiple subprojects in a monorepo with a single command.
+
+```bash
+# Preview monorepo bump
+version-it monorepo --bump patch --dry-run
+
+# Bump all subprojects at once
+version-it monorepo --bump minor
+
+# Full monorepo release
+version-it monorepo --bump major --commit --create-tag
+```
+
+Configure subprojects in your root `.version-it`:
+
+```yaml
+subprojects:
+  - path: packages/component1
+  - path: packages/component2
+    config: packages/component2/custom-config.yml
 ```
 
 ## 🔧 Advanced Examples

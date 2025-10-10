@@ -11,8 +11,9 @@ monorepo-example/
 ├── .version-it                 # Global product version config
 ├── VERSION                     # Current product version (1.0.0)
 ├── VERSION.txt                 # Human-readable version file
-├── demo.sh                     # Monorepo versioning demo
+├── demo.sh                     # Component-by-component demo
 ├── bump-demo.sh                # Bump types explanation demo
+├── monorepo-demo.sh            # Batch processing demo
 └── packages/
     ├── app/                    # Python app (semantic versioning)
     │   ├── .version-it
@@ -60,6 +61,34 @@ Version-it supports different bump types that work differently depending on your
 
 Run `./bump-demo.sh` to see exactly how these work with each versioning scheme!
 
+## Batch Processing with Monorepo Command
+
+Version-it now supports batch processing all components with a single command:
+
+```bash
+# Preview what would happen
+version-it monorepo --bump patch --dry-run
+
+# Bump all components at once
+version-it monorepo --bump minor
+
+# Full release with commit and tag
+version-it monorepo --bump major --commit --create-tag
+```
+
+The root `.version-it` defines which subprojects to process:
+
+```yaml
+subprojects:
+  - path: packages/app
+  - path: packages/cpp-app
+  - path: packages/lib
+  - path: packages/rust-lib
+  - path: packages/service
+```
+
+This ensures consistent versioning across your entire monorepo!
+
 ```bash
 # Python app - semantic versioning
 cd packages/app
@@ -106,6 +135,12 @@ cd examples/monorepo-example
 ```bash
 cd examples/monorepo-example
 ./bump-demo.sh
+```
+
+**Monorepo Batch Demo**: See batch processing with `version-it monorepo`:
+```bash
+cd examples/monorepo-example
+./monorepo-demo.sh
 ```
 
 The monorepo demo shows:

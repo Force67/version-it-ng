@@ -1,11 +1,19 @@
 # Rust component configuration
 # Uses semantic versioning for the Rust library
 
+run-on-branches: ["main", "master", "develop"]
 versioning-scheme: semantic
 first-version: 0.1.0
 current-version-file: version.txt
+calver-enable-branch: false
+changelog-sections: []
+change-substitutions: []
+change-type-map: []
+commit-based-bumping: false
+enable-expensive-metrics: false
 
 # Update Cargo.toml version field
 package-files:
   - path: Cargo.toml
     manager: cargo
+    field: package.version

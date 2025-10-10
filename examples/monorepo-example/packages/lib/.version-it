@@ -1,9 +1,16 @@
 # Lib component configuration
 # Uses calendar versioning for the C library
 
+run-on-branches: ["main", "master", "develop"]
 versioning-scheme: calver
 first-version: 25.10.01
 current-version-file: version.txt
+calver-enable-branch: false
+changelog-sections: []
+change-substitutions: []
+change-type-map: []
+commit-based-bumping: false
+enable-expensive-metrics: false
 
 # Generate C header file
 version-headers:

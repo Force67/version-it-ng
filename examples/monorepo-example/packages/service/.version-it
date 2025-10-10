@@ -1,9 +1,16 @@
 # Service component configuration
 # Uses timestamp versioning for the Node.js service
 
+run-on-branches: ["main", "master", "develop"]
 versioning-scheme: timestamp
 first-version: 20251005220904
 current-version-file: version.txt
+calver-enable-branch: false
+changelog-sections: []
+change-substitutions: []
+change-type-map: []
+commit-based-bumping: false
+enable-expensive-metrics: false
 
 # Update package.json version field
 package-files:

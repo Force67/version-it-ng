@@ -1,9 +1,24 @@
 # Root monorepo configuration
 # Global product versioning alongside individual component versions
 
+run-on-branches: ["main", "master", "develop"]
 versioning-scheme: semantic
 first-version: 1.0.0
 current-version-file: VERSION
+calver-enable-branch: false
+changelog-sections: []
+change-substitutions: []
+change-type-map: []
+commit-based-bumping: false
+enable-expensive-metrics: false
+
+# Define subprojects for batch processing
+subprojects:
+  - path: packages/app
+  - path: packages/cpp-app
+  - path: packages/lib
+  - path: packages/rust-lib
+  - path: packages/service
 
 # Global version file for the entire product
 version-headers:
