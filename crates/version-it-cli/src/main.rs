@@ -17,6 +17,10 @@ struct Cli {
     /// Path to config file (default: .version-it)
     #[arg(short, long, default_value = ".version-it")]
     config: String,
+    /// Structured input as JSON (alternative to config file)
+    /// Allows passing configuration programmatically instead of using files
+    #[arg(long)]
+    structured_input: Option<String>,
     /// Output responses in structured JSON format
     #[arg(long)]
     structured_output: bool,
@@ -127,12 +131,25 @@ fn parse_counter_set(s: &str) -> Result<(String, u32), String> {
 
 fn main() {
     let cli = Cli::parse();
-    let config = if Path::new(&cli.config).exists() {
-        let c = Config::load_from_file(&cli.config);
-        if c.is_err() {
-            output_error(cli.structured_output, &format!("Error loading config: {}", c.err().unwrap()));
+    let config = if let Some(json_input) = &cli.structured_input {
+        // Parse structured input as JSON
+        match serde_json::from_str::<Config>(json_input) {
+            Ok(mut c) => {
+                // Set base_path for structured input (defaults to current directory)
+                c.base_path = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                Some(c)
+            }
+            Err(e) => {
+                output_error(cli.structured_output, &format!("Error parsing structured input: {}", e));
+            }
         }
-        Some(c.unwrap())
+    } else if Path::new(&cli.config).exists() {
+        match Config::load_from_file(&cli.config) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                output_error(cli.structured_output, &format!("Error loading config: {}", e));
+            }
+        }
     } else {
         None
     };

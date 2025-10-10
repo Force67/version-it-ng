@@ -436,8 +436,6 @@ fn process_subproject(subproject_path: String, subproject_config_path: Option<St
         }
     };
 
-    let current_version = current_version_info.to_string();
-
     // Calculate next version
     let mut next_version_info = current_version_info.clone();
     if let Err(e) = apply_bump(&mut next_version_info, &bump_type) {

@@ -96,7 +96,7 @@ impl VersionInfo {
 
     /// Returns the version as a string.
     pub fn to_string(&self) -> String {
-        match &self.version {
+        let version_str = match &self.version {
             VersionType::Semantic(v) => format!("{}.{}.{}", v.major, v.minor, v.patch),
             VersionType::Calver { year, month, day } => format!("{:02}.{:02}.{:02}", year, month, day),
             VersionType::Timestamp(s) => s.clone(),
@@ -106,6 +106,12 @@ impl VersionInfo {
             VersionType::Datetime(s) => s.clone(),
             VersionType::Pattern(s) => s.clone(),
             VersionType::SemanticCommit { major, minor, commit_count } => format!("{}.{}.{}", major, minor, commit_count),
+        };
+
+        if let Some(channel) = &self.channel {
+            format!("{}-{}", version_str, channel)
+        } else {
+            version_str
         }
     }
 

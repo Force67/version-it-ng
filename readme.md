@@ -290,9 +290,38 @@ version-it craft --template enterprise-release --structured-output
 
 ## Configuration
 
-Most options can be set via YAML config or overridden via CLI flags.
+Most options can be set via YAML config, JSON structured input, or overridden via CLI flags.
 
 Specify a custom config file with `--config path/to/.version-it`.
+
+### Structured Input (JSON)
+
+For programmatic usage and CI/CD pipelines, you can pass configuration as JSON instead of files:
+
+```bash
+# Pass config as JSON string
+version-it --structured-input '{"versioning-scheme":"semantic","first-version":"1.0.0"}' bump --bump patch
+
+# Use with monorepo subprojects
+version-it --structured-input '{
+  "versioning-scheme": "semantic",
+  "first-version": "1.0.0",
+  "subprojects": [
+    {"path": "packages/app"},
+    {"path": "packages/lib", "config": "packages/lib/.version-it"}
+  ]
+}' monorepo --bump minor --dry-run
+
+# Get structured JSON output
+version-it --structured-input '{"versioning-scheme":"semantic","first-version":"1.0.0"}' --structured-output bump --bump patch
+# Output: {"success":true,"version":"1.0.1","previous_version":"1.0.0","bump_type":"patch"}
+```
+
+This is ideal for:
+- CI/CD pipelines that generate config dynamically
+- Programmatic usage in scripts and tools
+- Complex monorepo scenarios with conditional subproject definitions
+- Integration with other tools that output JSON
 
 Create a `.version-it` file in your project:
 
@@ -468,6 +497,12 @@ Example CI workflow:
 
 ## 🚀 CLI Commands
 
+All commands support:
+- `--config <file>`: Use custom config file (default: `.version-it`)
+- `--structured-input <json>`: Pass config as JSON string instead of file
+- `--structured-output`: Output results as JSON for programmatic usage
+- `--dry-run`: Preview operations without making changes
+
 ### version-it craft
 Generate custom versions using configurable templates.
 
@@ -526,6 +561,16 @@ version-it monorepo --bump minor
 
 # Full monorepo release
 version-it monorepo --bump major --commit --create-tag
+
+# Use structured input for dynamic monorepo config
+version-it --structured-input '{
+  "versioning-scheme": "semantic",
+  "first-version": "1.0.0",
+  "subprojects": [
+    {"path": "packages/app"},
+    {"path": "packages/lib"}
+  ]
+}' monorepo --bump patch --structured-output
 ```
 
 Configure subprojects in your root `.version-it`:
@@ -536,6 +581,8 @@ subprojects:
   - path: packages/component2
     config: packages/component2/custom-config.yml
 ```
+
+Or define subprojects programmatically with `--structured-input` for dynamic monorepo scenarios.
 
 ## 🔧 Advanced Examples
 
