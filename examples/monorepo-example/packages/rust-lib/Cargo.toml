@@ -4,4 +4,4 @@
 description = "Example Rust library component in monorepo"
 edition = "2021"
 name = "monorepo-rust-lib"
-version = "0.1.1710114948"
+version = "0.1.1710114953"

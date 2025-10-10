@@ -21,11 +21,12 @@ impl super::Config {
     }
 
     fn update_single_package_file(&self, package_file: &super::PackageFile, version: &str) -> Result<(), Box<dyn std::error::Error>> {
-        if !std::path::Path::new(&package_file.path).exists() {
+        let full_path = self.base_path.join(&package_file.path);
+        if !full_path.exists() {
             // Skip files that don't exist
             return Ok(());
         }
-        let content = std::fs::read_to_string(&package_file.path)?;
+        let content = std::fs::read_to_string(&full_path)?;
         let updated_content = match package_file.manager.as_str() {
             "npm" | "yarn" | "pnpm" => self.update_json_file(&content, version, package_file.field.as_deref().unwrap_or("version"))?,
             "cargo" => self.update_toml_file(&content, version, package_file.field.as_deref().unwrap_or("version"))?,
@@ -34,7 +35,7 @@ impl super::Config {
             "cmake" => self.update_cmake_file(&content, version, package_file.field.as_deref().unwrap_or("PROJECT_VERSION"))?,
             _ => return Err(format!("Unsupported package manager: {}", package_file.manager).into()),
         };
-        std::fs::write(&package_file.path, updated_content)?;
+        std::fs::write(&full_path, updated_content)?;
         Ok(())
     }
 

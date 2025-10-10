@@ -65,6 +65,8 @@ pub struct Subproject {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(skip)]
+    pub base_path: std::path::PathBuf,
     #[serde(rename = "run-on-branches")]
     pub run_on_branches: Vec<String>,
     #[serde(rename = "versioning-scheme")]
@@ -116,13 +118,15 @@ impl Config {
     /// A Result containing the Config or an error if loading/parsing fails.
     pub fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let contents = std::fs::read_to_string(path)?;
-        let config: Config = serde_yaml::from_str(&contents)?;
+        let mut config: Config = serde_yaml::from_str(&contents)?;
+        config.base_path = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new(".")).to_path_buf();
         Ok(config)
     }
 
     pub fn get_current_version(&self) -> Result<String, Box<dyn std::error::Error>> {
         if let Some(ref file) = self.current_version_file {
-            let version = std::fs::read_to_string(file)?;
+            let full_path = self.base_path.join(file);
+            let version = std::fs::read_to_string(full_path)?;
             Ok(version.trim().to_string())
         } else {
             Ok(self.first_version.clone())
@@ -289,6 +293,7 @@ enable-expensive-metrics: false
         use std::fs;
         fs::write("test_version.txt", "2.1.0\n").unwrap();
         let config = Config {
+            base_path: std::path::PathBuf::from("."),
             run_on_branches: vec![],
             versioning_scheme: "semantic".to_string(),
             first_version: "1.0.0".to_string(),
@@ -314,6 +319,7 @@ enable-expensive-metrics: false
     #[test]
     fn test_determine_bump_from_commit_with_regex() {
         let config = Config {
+            base_path: std::path::PathBuf::from("."),
             run_on_branches: vec![],
             versioning_scheme: "semantic".to_string(),
             first_version: "1.0.0".to_string(),

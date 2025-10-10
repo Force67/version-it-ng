@@ -3,10 +3,6 @@ use super::output::{output_success, output_error};
 use super::git_ops::{git_commit_changes, git_create_tag};
 use std::thread;
 use std::path::Path;
-use std::sync::Mutex;
-lazy_static::lazy_static! {
-    static ref DIR_MUTEX: Mutex<()> = Mutex::new(());
-}
 
 #[derive(Debug)]
 pub struct BumpOptions {
@@ -391,7 +387,7 @@ fn process_subproject(subproject_path: String, subproject_config_path: Option<St
     let subproject_abs_path = root_dir.join(&subproject_path);
 
     // Load subproject config
-    let sub_config = if let Some(config_path) = subproject_config_path {
+    let mut sub_config = if let Some(config_path) = subproject_config_path {
         // If config path is relative, make it absolute from the subproject directory
         let config_abs_path = if Path::new(&config_path).is_relative() {
             subproject_abs_path.join(&config_path)
@@ -399,7 +395,7 @@ fn process_subproject(subproject_path: String, subproject_config_path: Option<St
             Path::new(&config_path).to_path_buf()
         };
         match Config::load_from_file(config_abs_path.to_str().unwrap_or(&config_path)) {
-            Ok(config) => Some(config),
+            Ok(config) => config,
             Err(e) => {
                 return (subproject_path, Err(format!("Config error: {}", e)));
             }
@@ -408,31 +404,20 @@ fn process_subproject(subproject_path: String, subproject_config_path: Option<St
         // Try default .version-it in subproject directory
         let config_abs_path = subproject_abs_path.join(".version-it");
         match Config::load_from_file(config_abs_path.to_str().unwrap()) {
-            Ok(config) => Some(config),
+            Ok(config) => config,
             Err(e) => {
                 return (subproject_path, Err(format!("Config error: {}", e)));
             }
         }
     };
 
-    // Use mutex to serialize directory operations
-    let _guard = DIR_MUTEX.lock().unwrap();
-
-    // Temporarily change to subproject directory for version operations
-    let original_dir = match std::env::current_dir() {
-        Ok(dir) => dir,
-        Err(e) => return (subproject_path.clone(), Err(format!("Failed to get current directory: {}", e))),
-    };
-
-    if let Err(e) = std::env::set_current_dir(&subproject_abs_path) {
-        return (subproject_path, Err(format!("Directory error: {} (tried {})", e, subproject_abs_path.display())));
-    }
+    // Override the base_path to point to the subproject directory
+    sub_config.base_path = subproject_abs_path.clone();
 
     // Get current version
-    let current_version_info = match get_version_info_with_scheme(None, &sub_config, None, None) {
+    let current_version_info = match get_version_info_with_scheme(None, &Some(sub_config.clone()), None, None) {
         Ok(version_info) => version_info,
         Err(e) => {
-            let _ = std::env::set_current_dir(&original_dir);
             return (subproject_path, Err(format!("Version error: {}", e)));
         }
     };
@@ -442,37 +427,33 @@ fn process_subproject(subproject_path: String, subproject_config_path: Option<St
     // Calculate next version
     let mut next_version_info = current_version_info.clone();
     if let Err(e) = apply_bump(&mut next_version_info, &bump_type) {
-        let _ = std::env::set_current_dir(&original_dir);
         return (subproject_path, Err(format!("Bump error: {}", e)));
     }
 
     let next_version = next_version_info.to_string();
 
     if !dry_run {
-        // Apply the bump
-        let bump_options = BumpOptions {
-            version: Some(current_version.clone()),
-            bump: bump_type,
-            scheme: None,
-            channel: None,
-            create_tag: false, // We'll handle tagging at the end if requested
-            commit: false,     // We'll handle committing at the end if requested
-            dry_run: false,
-        };
+        // Apply the bump by updating package files and generating headers
+        if let Err(e) = sub_config.update_package_files(&next_version) {
+            return (subproject_path, Err(format!("Package update error: {}", e)));
+        }
 
-        // We need to create a new context for the subproject
-        let sub_context = CommandContext {
-            config: sub_config,
-            structured_output: false, // Disable structured output for subprojects
-        };
+        if let Err(e) = sub_config.generate_headers(&next_version, None) {
+            return (subproject_path, Err(format!("Header generation error: {}", e)));
+        }
 
-        handle_bump_command(bump_options, &sub_context);
+        // Update the version file
+        if let Some(ref version_file) = sub_config.current_version_file {
+            let version_file_path = subproject_abs_path.join(version_file);
+            if let Err(e) = std::fs::write(&version_file_path, &next_version) {
+                return (subproject_path, Err(format!("Version file write error: {}", e)));
+            }
+        }
+
+        // Print the new version (mimicking handle_bump_command output)
+        println!("{}", next_version);
     }
 
-    // Return to original directory
-    let _ = std::env::set_current_dir(&original_dir);
-
-    // Mutex guard is dropped here automatically
     (subproject_path, Ok(next_version))
 }
 

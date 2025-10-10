@@ -134,7 +134,8 @@ impl super::Config {
             let handlebars = Handlebars::new();
             for header in headers {
                 let template = if let Some(ref template_path) = header.template_path {
-                    std::fs::read_to_string(template_path)?
+                    let full_template_path = self.base_path.join(template_path);
+                    std::fs::read_to_string(full_template_path)?
                 } else if let Some(ref template) = header.template {
                     template.clone()
                 } else {
@@ -173,7 +174,8 @@ impl super::Config {
                     "stats": stats_info
                 });
                 let content = handlebars.render_template(&template, &data)?;
-                std::fs::write(&header.path, content)?;
+                let full_path = self.base_path.join(&header.path);
+                std::fs::write(&full_path, content)?;
             }
         }
         Ok(())
