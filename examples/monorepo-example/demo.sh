@@ -36,6 +36,8 @@ get_component_version() {
         version=$(grep "__version__" version.py | sed 's/.*__version__ = "\([^"]*\)".*/\1/')
     elif [ -f "version.h" ]; then
         version=$(grep "#define LIB_VERSION" version.h | sed 's/.*LIB_VERSION "\([^"]*\)".*/\1/')
+    elif [ -f "CMakeLists.txt" ]; then
+        version=$(grep "project.*VERSION" CMakeLists.txt | sed 's/.*VERSION \([0-9.]*\).*/\1/')
     elif [ -f "Cargo.toml" ]; then
         version=$(grep "^version" Cargo.toml | sed 's/.*version = "\([^"]*\)".*/\1/')
     elif [ -f "package.json" ]; then
@@ -88,6 +90,16 @@ simulate_bump() {
                 new_version="$major.$minor.$((patch + 1))"
             fi
             ;;
+        "cpp-app")
+            # Semantic versioning: increment patch
+            if [ "$bump_type" = "patch" ]; then
+                local parts=$(echo $current_version | tr '.' ' ')
+                local major=$(echo $parts | awk '{print $1}')
+                local minor=$(echo $parts | awk '{print $2}')
+                local patch=$(echo $parts | awk '{print $3}')
+                new_version="$major.$minor.$((patch + 1))"
+            fi
+            ;;
         "service")
             # Timestamp versioning: simulate incrementing timestamp
             # For demo, just add some time
@@ -106,6 +118,9 @@ simulate_bump() {
     if [ -f "version.h" ]; then
         sed -i 's/#define LIB_VERSION "[^"]*"/#define LIB_VERSION "'$new_version'"/' version.h
     fi
+    if [ -f "CMakeLists.txt" ]; then
+        sed -i 's/project(.*VERSION [0-9.]*/project(cpp-app VERSION '$new_version'/' CMakeLists.txt
+    fi
     if [ -f "Cargo.toml" ]; then
         sed -i 's/^version = "[^"]*"/version = "'$new_version'"/' Cargo.toml
     fi
@@ -120,7 +135,7 @@ show_all_versions() {
     echo "Current versions across all components:"
     echo "Global: $(cat VERSION)"
 
-    for component in app lib rust-lib service; do
+    for component in app cpp-app lib rust-lib service; do
         local version=$(get_component_version "$component")
         echo "$component: $version"
     done
@@ -164,6 +179,12 @@ simulate_bump "rust-lib" "patch"
 simulate_bump "rust-lib" "patch"
 echo
 
+# C++ app bumps
+echo "📦 C++ App Component (Semantic versioning)"
+simulate_bump "cpp-app" "patch"
+simulate_bump "cpp-app" "patch"
+echo
+
 # Service bumps
 echo "📦 Service Component (Timestamp versioning)"
 simulate_bump "service" "patch"
@@ -185,7 +206,7 @@ echo "✅ Version history is preserved per component"
 echo
 echo "The monorepo supports multiple package managers:"
 echo "- Python: version.py files"
-echo "- C/C++: version.h header files"
+echo "- C/C++: version.h header files and CMakeLists.txt"
 echo "- Rust: Cargo.toml files"
 echo "- Node.js: package.json files"
 echo

@@ -31,6 +31,7 @@ impl super::Config {
             "cargo" => self.update_toml_file(&content, version, package_file.field.as_deref().unwrap_or("version"))?,
             "python" => self.update_python_file(&content, version, package_file.field.as_deref().unwrap_or("__version__"))?,
             "maven" => self.update_xml_file(&content, version, package_file.field.as_deref().unwrap_or("version"))?,
+            "cmake" => self.update_cmake_file(&content, version, package_file.field.as_deref().unwrap_or("PROJECT_VERSION"))?,
             _ => return Err(format!("Unsupported package manager: {}", package_file.manager).into()),
         };
         std::fs::write(&package_file.path, updated_content)?;
@@ -84,5 +85,28 @@ impl super::Config {
 
         let re = regex::Regex::new(&pattern)?;
         Ok(re.replace_all(content, version_tag).to_string())
+    }
+
+    fn update_cmake_file(&self, content: &str, version: &str, field: &str) -> Result<String, Box<dyn std::error::Error>> {
+        let lines: Vec<&str> = content.lines().collect();
+        let mut updated_lines = Vec::new();
+        let set_pattern = format!("set({}", field);
+
+        for line in lines {
+            if line.trim().starts_with(&set_pattern) {
+                // CMake set() command replacement
+                if let Some(quote_start) = line.find('"') {
+                    if let Some(quote_end) = line[quote_start + 1..].find('"').map(|i| i + quote_start + 1) {
+                        let before = &line[..quote_start + 1];
+                        let after = &line[quote_end..];
+                        updated_lines.push(format!("{}{}{}", before, version, after));
+                        continue;
+                    }
+                }
+            }
+            updated_lines.push(line.to_string());
+        }
+
+        Ok(updated_lines.join("\n"))
     }
 }

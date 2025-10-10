@@ -42,6 +42,31 @@ Support for release channels with different versioning behaviors:
 - **nightly**: Uses timestamp/commit for nightly builds (20241006)
 - **custom**: User-defined channel suffix (1.2.3-custom)
 
+## Bump Types
+
+Version-it supports three standard bump types that work differently depending on your versioning scheme:
+
+### **patch** - Small Changes
+- **Semantic**: Increments patch number (1.2.3 → 1.2.4)
+- **Calendar**: Increments day (25.10.15 → 25.10.16)
+- **Build**: Increments build number (1.2.3.456 → 1.2.3.457)
+- **Timestamp**: Updates to current timestamp
+- **Use for**: Bug fixes, documentation, internal improvements
+
+### **minor** - New Features
+- **Semantic**: Increments minor, resets patch (1.2.3 → 1.3.0)
+- **Calendar**: Increments month, resets day (25.10.15 → 25.11.01)
+- **Build**: Increments minor, resets build (1.2.3.456 → 1.2.4.0)
+- **Use for**: New features, backwards-compatible changes
+
+### **major** - Breaking Changes
+- **Semantic**: Increments major, resets minor/patch (1.2.3 → 2.0.0)
+- **Calendar**: Increments year, resets month/day (25.10.15 → 26.01.01)
+- **Build**: Increments major, resets minor/build (1.2.3.456 → 1.3.0.0)
+- **Use for**: Breaking changes, major rewrites
+
+💡 **Pro tip**: Use `version-it next --bump <type>` to preview what a bump would produce!
+
 ## Usage
 
 ```bash
@@ -356,6 +381,7 @@ The tool can automatically update version fields in package manager files:
 - **cargo**: Updates `Cargo.toml` version field
 - **python**: Updates `__version__` in Python files
 - **maven**: Updates `<version>` tags in `pom.xml`
+- **cmake**: Updates `set(PROJECT_VERSION ...)` in CMakeLists.txt
 
 Configure package files in your `.version-it` config:
 
@@ -365,6 +391,9 @@ package-files:
   manager: npm
 - path: Cargo.toml
   manager: cargo
+- path: CMakeLists.txt
+  manager: cmake
+  field: PROJECT_VERSION  # Optional: specify variable name
 - path: pyproject.toml
   manager: python
   field: __version__  # Optional: specify field name

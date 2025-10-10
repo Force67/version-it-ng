@@ -1,0 +1,11 @@
+# C++ component configuration
+# Uses semantic versioning for the C++ application
+
+versioning-scheme: semantic
+first-version: 1.0.0
+current-version-file: version.txt
+
+# Update CMakeLists.txt version variable
+package-files:
+  - path: CMakeLists.txt
+    manager: cmake

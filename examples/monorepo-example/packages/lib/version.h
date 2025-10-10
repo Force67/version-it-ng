@@ -1,7 +1,7 @@
 #ifndef LIB_VERSION_H
 #define LIB_VERSION_H
 
-#define LIB_VERSION "25.10.11"
+#define LIB_VERSION "25.10.7"
 #define LIB_SCHEME "calver"
 #define LIB_CHANNEL "stable"
 #define LIB_GIT_COMMIT "abc1234"

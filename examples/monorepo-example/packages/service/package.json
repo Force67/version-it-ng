@@ -1,6 +1,6 @@
 {
   "name": "monorepo-service",
-  "version": "202510052213456",
+  "version": "202510052210357",
   "description": "Example service component in monorepo",
   "main": "index.js",
   "scripts": {

@@ -11,11 +11,16 @@ monorepo-example/
 ├── .version-it                 # Global product version config
 ├── VERSION                     # Current product version (1.0.0)
 ├── VERSION.txt                 # Human-readable version file
-├── demo.sh                     # Interactive demo script
+├── demo.sh                     # Monorepo versioning demo
+├── bump-demo.sh                # Bump types explanation demo
 └── packages/
     ├── app/                    # Python app (semantic versioning)
     │   ├── .version-it
     │   └── version.py
+    ├── cpp-app/                # C++ app (semantic versioning)
+    │   ├── .version-it
+    │   ├── CMakeLists.txt
+    │   └── version.txt
     ├── lib/                    # C library (calendar versioning)
     │   ├── .version-it
     │   └── version.h
@@ -45,9 +50,23 @@ This updates both `VERSION` and `VERSION.txt` files.
 
 Each component has its own version that can change independently. Maybe your Python app releases more frequently than your C library.
 
+## Understanding Bump Types
+
+Version-it supports different bump types that work differently depending on your versioning scheme:
+
+- **patch**: Small changes, bug fixes
+- **minor**: New features, backwards-compatible changes
+- **major**: Breaking changes, major rewrites
+
+Run `./bump-demo.sh` to see exactly how these work with each versioning scheme!
+
 ```bash
 # Python app - semantic versioning
 cd packages/app
+version-it bump --bump patch  # 1.0.0 → 1.0.1
+
+# C++ app - semantic versioning
+cd packages/cpp-app
 version-it bump --bump patch  # 1.0.0 → 1.0.1
 
 # C library - calendar versioning
@@ -66,6 +85,7 @@ version-it bump --bump patch  # Updates to current timestamp
 ## Component Details
 
 - **Python App**: Uses semantic versioning (1.2.3), generates `version.py`
+- **C++ App**: Uses semantic versioning (1.2.3), updates `CMakeLists.txt`
 - **C Library**: Calendar versioning (YY.MM.DD), generates `version.h`
 - **Rust Library**: Semantic versioning (0.x.x), updates `Cargo.toml`
 - **Node.js Service**: Timestamp versioning, updates `package.json`
@@ -74,16 +94,21 @@ Each component tracks its version in a `version.txt` file and updates its langua
 
 ## Try It Out
 
-### Quick Demo
+### Quick Demos
 
-Run the interactive demo to see everything in action:
-
+**Monorepo Demo**: See components version independently:
 ```bash
 cd examples/monorepo-example
 ./demo.sh
 ```
 
-This will show you:
+**Bump Types Demo**: Learn how patch/minor/major bumps work:
+```bash
+cd examples/monorepo-example
+./bump-demo.sh
+```
+
+The monorepo demo shows:
 - Initial versions across all components
 - Global product version bump
 - Multiple bumps for each component
